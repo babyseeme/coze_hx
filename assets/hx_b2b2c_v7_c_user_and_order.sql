@@ -3,12 +3,12 @@
  * 华夏航旅 B2B2C — C端用户体系 & 订单体系 表结构
  * ============================================================
  * 数据库 : hx_b2b2c (MySQL 8.0.35, utf8mb4_unicode_ci)
- * 版本   : v7.0
+ * 版本   : v7.1
  * 日期   : 2025-07
  * 说明   : 本文件为新增表, 不修改已有 v6 表结构
  * ============================================================
  *
- * 新增表清单 (18 张):
+ * 新增表清单 (33 张):
  *
  * ── C端用户体系 (9 张) ──────────────────────────────
  *   c_user                     平台自然人(全局唯一)
@@ -31,6 +31,25 @@
  *   order_item_mall            商城子订单(含商城字段)
  *   order_procure_item         采购子订单(关联销售item,按渠道出票)
  *   order_change               订单变更记录(退/改/签)
+ *
+ * ── 航空基础数据 (13 张) ──────────────────────────────
+ *   air_airline                航司主数据
+ *   air_airport                机场主数据
+ *   air_cabin_level            舱位等级(航司×标准舱位)
+ *   air_cabin                  舱位明细(等级下具体舱位/折扣/代理费)
+ *   air_plane_model            机型数据(机建费)
+ *   air_fuel                   航司燃油费(里程区间)
+ *   air_fuel_detail            航程里程表(航司×出发×到达=里程)
+ *   air_gauge                  客规-退改签规则(航司×舱位×有效期)
+ *   air_gauge_type             客规-退改签时间段类型(起飞前/后N小时)
+ *   air_airline_accounts       航司采购账号(账号/密码/渠道/office号)
+ *   air_airline_notice         航司预定须知
+ *   air_platform               采购平台(上游平台配置)
+ *   air_region                 行政区划(省/市/区三级)
+ *
+ * ── 大客户政策匹配 (2 张) ──────────────────────────────
+ *   corporate_policy_rule      大客户政策匹配规则(航线/舱位/折扣区间)
+ *   corporate_policy_match_log 政策匹配记录(匹配结果快照)
  *
  * ============================================================
  * 核心设计约定:
@@ -917,7 +936,423 @@ SET FOREIGN_KEY_CHECKS = 1;
  *   3. 查 c_member_corporate WHERE user_id=? AND airline_code=? AND status IN (2,3,4)
  *      → 存在 → 警告: "曾有该航司大客户身份", 需人工确认
  *   4. 写入 conflict_check 快照 → 创建申报
- *   5. 审核通过 → 写入 c_member_corporate (uk_guard 保证唯一)
+ *
+ * ══════════════════════════════════════════════════════════════════
+ *  航空基础数据（借鉴 bilan_booking_master 行业特征表）
+ * ══════════════════════════════════════════════════════════════════
+ *
+ * ── 航空主数据 ──────────────────────────────────────
+ *
+ *   air_airline              (航司主数据: 2字码/名称/开票3字码/国内国际/logo)
+ *   air_airport              (机场主数据: 3字码/中英文名/城市/国家/省份)
+ *   air_region               (行政区划: 省/市/区三级, 火车票/酒店/地址共用)
+ *   air_plane_model          (机型: 机型代码/机建费/生产厂家)
+ *
+ * ── 舱位体系 ──────────────────────────────────────
+ *
+ *   air_cabin_level          (舱位等级: 航司×标准舱位/儿童婴儿折扣/基础行李额)
+ *     └── 1:N → air_cabin    (舱位明细: 等级下具体舱位/折扣/代理费/行李额覆盖)
+ *
+ * ── 税费体系 ──────────────────────────────────────
+ *
+ *   air_fuel                 (燃油费: 航司×里程区间=成人燃油费)
+ *     └── 1:N → air_fuel_detail (航程里程: 航司×出发×到达=里程数)
+ *
+ * ── 客规(退改签规则) ──────────────────────────────
+ *
+ *   air_gauge_type           (客规时间段类型: 起飞前N小时/起飞后N小时)
+ *     └── 1:N → air_gauge    (客规: 航司×舱位×时间段=退/改费率+说明)
+ *
+ * ── 采购渠道配置 ──────────────────────────────
+ *
+ *   air_airline_accounts     (航司采购账号: 账号/密码/采购渠道/office号)
+ *   air_platform             (采购平台: 上游平台配置/数据源)
+ *   air_airline_notice       (航司预定须知: 航司特殊预订要求/注意事项)
+ *
+ * ── 大客户政策匹配 ──────────────────────────────
+ *
+ *   corporate_policy_rule    (政策匹配规则: 航线/舱位/折扣区间/航司匹配条件)
+ *   corporate_policy_match_log (政策匹配记录: 某次匹配的详细结果快照)
  *
  * ============================================================
  */
+
+
+-- ════════════════════════════════════════════════════════════════
+--  航空基础数据表（借鉴 bilan_booking_master 行业特征表）
+-- ════════════════════════════════════════════════════════════════
+
+-- ----------------------------
+-- 19 航司主数据
+-- ----------------------------
+DROP TABLE IF EXISTS `air_airline`;
+CREATE TABLE `air_airline` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `code` char(2) NOT NULL COMMENT '航司2字码(IATA)',
+  `name` varchar(100) NOT NULL COMMENT '航司简称',
+  `full_name` varchar(200) NULL DEFAULT NULL COMMENT '航司全称',
+  `ticket_code` char(3) NULL DEFAULT NULL COMMENT '开票3字码(IATA)',
+  `area` enum('N','I') NULL DEFAULT 'N' COMMENT 'N=国内 I=国际',
+  `logo` varchar(255) NULL DEFAULT NULL COMMENT 'logo URL',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`,`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='航司主数据';
+
+-- ----------------------------
+-- 20 机场主数据
+-- ----------------------------
+DROP TABLE IF EXISTS `air_airport`;
+CREATE TABLE `air_airport` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `code` char(3) NOT NULL COMMENT '机场3字码(IATA)',
+  `name` varchar(80) NOT NULL COMMENT '机场中文名',
+  `name_en` varchar(100) NULL DEFAULT NULL COMMENT '机场英文名',
+  `city_code` char(3) NULL DEFAULT NULL COMMENT '城市3字码',
+  `city_name` varchar(50) NULL DEFAULT NULL COMMENT '城市中文名',
+  `city_name_en` varchar(50) NULL DEFAULT NULL COMMENT '城市英文名',
+  `province` varchar(30) NULL DEFAULT NULL COMMENT '省/州',
+  `country_code` char(2) NULL DEFAULT NULL COMMENT '国家代码(ISO 3166-1 alpha-2)',
+  `country_name` varchar(30) NULL DEFAULT NULL COMMENT '国家中文名',
+  `continent` varchar(20) NULL DEFAULT NULL COMMENT '洲',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`,`deleted_at`),
+  KEY `idx_city_code` (`city_code`),
+  KEY `idx_country_code` (`country_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='机场主数据';
+
+-- ----------------------------
+-- 21 行政区划(省/市/区三级)
+-- ----------------------------
+DROP TABLE IF EXISTS `air_region`;
+CREATE TABLE `air_region` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `code` varchar(12) NOT NULL COMMENT '行政区划代码',
+  `name` varchar(32) NOT NULL COMMENT '名称',
+  `level` tinyint UNSIGNED NOT NULL COMMENT '层级: 1=省/直辖市 2=市 3=区县',
+  `parent_code` varchar(12) NULL DEFAULT NULL COMMENT '父级行政区划代码',
+  `province_code` varchar(12) NULL DEFAULT NULL COMMENT '顶级(省)行政区划代码',
+  `city_iata_code` char(3) NULL DEFAULT NULL COMMENT '城市3字码(关联air_airport.city_code)',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`),
+  KEY `idx_parent_code` (`parent_code`),
+  KEY `idx_province_code` (`province_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='行政区划(省/市/区三级)';
+
+-- ----------------------------
+-- 22 机型
+-- ----------------------------
+DROP TABLE IF EXISTS `air_plane_model`;
+CREATE TABLE `air_plane_model` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `code` char(10) NOT NULL COMMENT '机型代码(如738/A320)',
+  `manufacturer` varchar(30) NULL DEFAULT NULL COMMENT '生产厂家(Boeing/Airbus/COMAC等)',
+  `build_fee` decimal(10,2) NULL DEFAULT 0.00 COMMENT '机建费(元)',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`,`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='机型数据(含机建费)';
+
+-- ----------------------------
+-- 23 舱位等级(航司维度)
+-- ----------------------------
+DROP TABLE IF EXISTS `air_cabin_level`;
+CREATE TABLE `air_cabin_level` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `airline_code` char(2) NOT NULL COMMENT '航司2字码',
+  `name` varchar(50) NOT NULL COMMENT '舱位等级名称(经济舱/公务舱/头等舱等)',
+  `standard_cabin_code` char(1) NOT NULL COMMENT '标准舱位代码(Y/C/F)',
+  `child_discount` decimal(5,2) NULL DEFAULT NULL COMMENT '儿童折扣(如67.00=6.7折)',
+  `infant_discount` decimal(5,2) NULL DEFAULT NULL COMMENT '婴儿折扣(如10.00=1折)',
+  `baggage` varchar(255) NULL DEFAULT NULL COMMENT '标准行李额(如"20KG")',
+  `sort` int NOT NULL DEFAULT 100 COMMENT '权重: 越大越靠前',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_airline_std_cabin` (`airline_code`,`standard_cabin_code`,`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='航司舱位等级';
+
+-- ----------------------------
+-- 24 舱位明细(等级下的具体舱位)
+-- ----------------------------
+DROP TABLE IF EXISTS `air_cabin`;
+CREATE TABLE `air_cabin` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `cabin_level_id` int UNSIGNED NOT NULL COMMENT '舱位等级ID',
+  `airline_code` char(2) NOT NULL COMMENT '航司2字码(冗余,便于查询)',
+  `cabin_code` char(1) NOT NULL COMMENT '舱位编号(如Y/B/M/K等)',
+  `discount` char(5) NULL DEFAULT NULL COMMENT '成人折扣(如"45"=4.5折)',
+  `is_sellable` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=可销售舱位 0=不可销售',
+  `is_published` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=公布运价舱位 0=不公布',
+  `baggage_override` varchar(255) NULL DEFAULT NULL COMMENT '行李额覆盖(为空则继承等级标准)',
+  `base_agency_fee` decimal(8,2) NULL DEFAULT 0.00 COMMENT '基础代理费',
+  `sort` int NOT NULL DEFAULT 10 COMMENT '权重: 越大越靠前',
+  `effect_start` varchar(30) NULL DEFAULT NULL COMMENT '生效时间',
+  `effect_end` varchar(30) NULL DEFAULT NULL COMMENT '失效时间',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_airline_cabin` (`airline_code`,`cabin_code`,`deleted_at`),
+  KEY `idx_cabin_level_id` (`cabin_level_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='舱位明细(等级下具体舱位)';
+
+-- ----------------------------
+-- 25 燃油费(航司维度)
+-- ----------------------------
+DROP TABLE IF EXISTS `air_fuel`;
+CREATE TABLE `air_fuel` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `airline_code` char(2) NOT NULL COMMENT '航司2字码',
+  `adult_fuel` decimal(10,2) NOT NULL DEFAULT 0.00 COMMENT '成人燃油费(元)',
+  `child_fuel` decimal(10,2) NULL DEFAULT 0.00 COMMENT '儿童燃油费(元)',
+  `infant_fuel` decimal(10,2) NULL DEFAULT 0.00 COMMENT '婴儿燃油费(元)',
+  `mileage_threshold` int NOT NULL DEFAULT 800 COMMENT '里程阈值(KM): 超过此值用另一档',
+  `adult_fuel_long` decimal(10,2) NULL DEFAULT 0.00 COMMENT '成人燃油费-长航线(元)',
+  `child_fuel_long` decimal(10,2) NULL DEFAULT 0.00 COMMENT '儿童燃油费-长航线(元)',
+  `infant_fuel_long` decimal(10,2) NULL DEFAULT 0.00 COMMENT '婴儿燃油费-长航线(元)',
+  `effect_start` date NULL DEFAULT NULL COMMENT '生效日期',
+  `effect_end` date NULL DEFAULT NULL COMMENT '失效日期',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_airline_effect` (`airline_code`,`effect_start`,`effect_end`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='航司燃油费(按里程分档)';
+
+-- ----------------------------
+-- 26 航程里程(航司×出发×到达)
+-- ----------------------------
+DROP TABLE IF EXISTS `air_fuel_detail`;
+CREATE TABLE `air_fuel_detail` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `airline_code` char(2) NOT NULL COMMENT '航司2字码',
+  `dep_code` char(3) NOT NULL COMMENT '出发机场3字码',
+  `arr_code` char(3) NOT NULL COMMENT '到达机场3字码',
+  `mileage` int NOT NULL DEFAULT 0 COMMENT '里程(KM)',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_route` (`airline_code`,`dep_code`,`arr_code`,`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='航程里程(航司×出发×到达)';
+
+-- ----------------------------
+-- 27 客规时间段类型(退/改 的时段定义)
+-- ----------------------------
+DROP TABLE IF EXISTS `air_gauge_type`;
+CREATE TABLE `air_gauge_type` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `airline_code` char(2) NOT NULL COMMENT '航司2字码',
+  `change_type` tinyint UNSIGNED NOT NULL COMMENT '1=退票 2=改签',
+  `hours_before` int UNSIGNED NULL DEFAULT NULL COMMENT '航班离站前N小时',
+  `hours_before_inclusive` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'hours_before是否包含(0=不包含 1=包含)',
+  `hours_after` int NULL DEFAULT NULL COMMENT '航班离站后N小时',
+  `hours_after_inclusive` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'hours_after是否包含(0=不包含 1=包含)',
+  `sort` int NOT NULL DEFAULT 10 COMMENT '排序: 越小越优先匹配',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_airline_type` (`airline_code`,`change_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='客规时间段类型(退/改的时段定义)';
+
+-- ----------------------------
+-- 28 客规(退改签规则)
+-- ----------------------------
+DROP TABLE IF EXISTS `air_gauge`;
+CREATE TABLE `air_gauge` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `airline_code` char(2) NOT NULL COMMENT '航司2字码',
+  `cabin_codes` varchar(255) NULL DEFAULT NULL COMMENT '适用舱位编号集合(逗号分隔, 空=全部)',
+  `gauge_type_id` int UNSIGNED NOT NULL COMMENT '客规时间段类型ID',
+  `effect_start` datetime NULL DEFAULT NULL COMMENT '生效时间',
+  `effect_end` datetime NULL DEFAULT NULL COMMENT '失效时间',
+  `discount_scope` varchar(100) NULL DEFAULT NULL COMMENT '折扣范围(如"1-3折/4折以上")',
+  `fee_rate` json NULL COMMENT '退改费率集合({refund_rate,change_rate,format})',
+  `refund_desc` varchar(1024) NULL DEFAULT NULL COMMENT '退票说明',
+  `change_desc` varchar(255) NULL DEFAULT NULL COMMENT '签转规定',
+  `is_noshow` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否为noshow规则',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_airline_cabin` (`airline_code`,`gauge_type_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='客规(退改签规则)';
+
+-- ----------------------------
+-- 29 航司采购账号(B2B/IBE接口凭证)
+-- ----------------------------
+DROP TABLE IF EXISTS `air_airline_accounts`;
+CREATE TABLE `air_airline_accounts` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `account_type` tinyint NOT NULL COMMENT '1=航司 2=OTA',
+  `airline_id` int UNSIGNED NULL DEFAULT NULL COMMENT '航司ID(air_airline.id)',
+  `airline_code` char(2) NULL DEFAULT NULL COMMENT '航司2字码(冗余)',
+  `platform_id` int UNSIGNED NULL DEFAULT NULL COMMENT 'OTA平台ID(air_platform.id)',
+  `account_name` varchar(255) NOT NULL COMMENT '账号名/用户名',
+  `account_password` varchar(255) NULL DEFAULT NULL COMMENT '账号密码(AES加密存储)',
+  `is_domestic` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否支持国内: 0=否 1=是',
+  `is_international` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否支持国际: 0=否 1=是',
+  `purchase_channel` varchar(50) NULL DEFAULT NULL COMMENT '支持采购渠道(如BSP/B2B/BOP/OP)',
+  `office_no` varchar(20) NULL DEFAULT NULL COMMENT 'Office号(生编用)',
+  `backend_url` varchar(1024) NULL DEFAULT NULL COMMENT '后台地址',
+  `remark` varchar(1000) NULL DEFAULT NULL COMMENT '备注',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用',
+  `tenant_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '所属租户ID(为空=平台级)',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_airline_code` (`airline_code`),
+  KEY `idx_airline_id` (`airline_id`),
+  KEY `idx_account_name` (`account_name`),
+  KEY `idx_tenant_id` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='航司/OTA采购账号(B2B接口凭证)';
+
+-- ----------------------------
+-- 30 采购平台(上游数据源配置)
+-- ----------------------------
+DROP TABLE IF EXISTS `air_platform`;
+CREATE TABLE `air_platform` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` varchar(64) NOT NULL COMMENT '平台名称(如IBE+/航班管家/TravelPort)',
+  `code` varchar(64) NOT NULL COMMENT '平台编码',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用',
+  `auth_code` varchar(20) NULL DEFAULT NULL COMMENT '回填票号授权码',
+  `config_template` varchar(200) NULL DEFAULT NULL COMMENT '配置模板(JSON)',
+  `data_source` varchar(20) NULL DEFAULT NULL COMMENT '数据源标识(IBE/SNSTN等)',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购平台(上游数据源配置)';
+
+-- ----------------------------
+-- 31 航司预定须知
+-- ----------------------------
+DROP TABLE IF EXISTS `air_airline_notice`;
+CREATE TABLE `air_airline_notice` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `airline_code` char(2) NOT NULL COMMENT '航司2字码',
+  `title` varchar(255) NOT NULL COMMENT '标题',
+  `content` text NULL COMMENT '内容(富文本/HTML)',
+  `external_url` varchar(1024) NULL DEFAULT NULL COMMENT '外部链接(航司官方)',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_airline_code` (`airline_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='航司预定须知/注意事项';
+
+-- ----------------------------
+-- 32 大客户政策匹配规则
+-- ----------------------------
+DROP TABLE IF EXISTS `corporate_policy_rule`;
+CREATE TABLE `corporate_policy_rule` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `contract_id` int UNSIGNED NOT NULL COMMENT '大客户签约ID(corporate_contract.id)',
+  `group_id` int UNSIGNED NOT NULL COMMENT '大客户集团ID(corporate_group.id, 冗余便于查询)',
+  `airline_code` char(2) NULL DEFAULT NULL COMMENT '航司2字码(空=全部航司)',
+  `dep_code` char(3) NULL DEFAULT NULL COMMENT '出发机场(空=全部)',
+  `arr_code` char(3) NULL DEFAULT NULL COMMENT '到达机场(空=全部)',
+  `cabin_level` varchar(20) NULL DEFAULT NULL COMMENT '舱位等级(如Y/C/F, 空=全部)',
+  `discount_min` decimal(5,2) NULL DEFAULT NULL COMMENT '折扣下限(如30.00=3折起)',
+  `discount_max` decimal(5,2) NULL DEFAULT NULL COMMENT '折扣上限(如100.00=全价)',
+  `trip_type` tinyint UNSIGNED NULL DEFAULT NULL COMMENT '行程类型: 1=单程 2=往返 3=多程(空=全部)',
+  `is_domestic` tinyint(1) NULL DEFAULT NULL COMMENT '1=国内 0=国际 NULL=全部',
+  `priority` int NOT NULL DEFAULT 100 COMMENT '优先级: 数值越小越优先',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_contract_id` (`contract_id`),
+  KEY `idx_airline_route` (`airline_code`,`dep_code`,`arr_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大客户政策匹配规则(航线/舱位/折扣匹配)';
+
+-- ----------------------------
+-- 33 大客户政策匹配记录
+-- ----------------------------
+DROP TABLE IF EXISTS `corporate_policy_match_log`;
+CREATE TABLE `corporate_policy_match_log` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `contract_id` int UNSIGNED NOT NULL COMMENT '签约ID',
+  `group_id` int UNSIGNED NOT NULL COMMENT '集团ID',
+  `rule_id` int UNSIGNED NULL DEFAULT NULL COMMENT '匹配到的规则ID(未匹配=NULL)',
+  `match_type` tinyint UNSIGNED NOT NULL COMMENT '匹配类型: 1=自动下单匹配 2=批量散客匹配',
+  `c_user_id` bigint UNSIGNED NOT NULL COMMENT 'C端用户ID',
+  `airline_code` char(2) NOT NULL COMMENT '航司2字码',
+  `dep_code` char(3) NULL DEFAULT NULL COMMENT '出发机场',
+  `arr_code` char(3) NULL DEFAULT NULL COMMENT '到达机场',
+  `cabin_code` char(1) NULL DEFAULT NULL COMMENT '舱位代码',
+  `discount` decimal(5,2) NULL DEFAULT NULL COMMENT '当前折扣',
+  `match_result` enum('matched','not_matched','conflict') NOT NULL COMMENT '匹配结果',
+  `match_snapshot` json NULL COMMENT '匹配快照(输入条件+匹配到的规则详情)',
+  `order_no` varchar(40) NULL DEFAULT NULL COMMENT '关联订单号(下单匹配时)',
+  `apply_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '关联申报ID(c_member_corporate_apply.id)',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_contract_id` (`contract_id`),
+  KEY `idx_c_user_id` (`c_user_id`,`airline_code`),
+  KEY `idx_order_no` (`order_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大客户政策匹配记录(自动匹配+批量匹配日志)';
+
+-- ════════════════════════════════════════════════════════════════
+--  表关系速查
+-- ════════════════════════════════════════════════════════════════
+--
+-- 【C端用户体系】
+--   c_user(平台自然人) ──1:N── c_member(商户会员)
+--   c_member ──1:N── c_member_address(收货地址)
+--   c_member ──1:N── c_passenger(常用旅客)
+--
+-- 【大客户体系】
+--   corporate_group(集团主体) ──1:N── corporate_contract(集团×航司签约)
+--   corporate_contract ──1:N── corporate_policy(自动申报政策)
+--   corporate_contract ──1:N── corporate_policy_rule(政策匹配规则)
+--   corporate_contract ──1:N── c_member_corporate(成员身份,uk_guard同航司唯一)
+--   corporate_contract ──1:N── c_member_corporate_apply(申报记录,uk_guard防重复)
+--   corporate_contract ──1:N── corporate_policy_match_log(匹配日志)
+--
+-- 【订单体系】
+--   order(主订单) ──1:N── order_sales(销售业务订单)
+--   order ──1:N── order_procurement(采购业务订单)
+--   order_sales ──1:N── order_item_flight/train/hotel/mall(销售子订单)
+--   order_procurement ──1:N── order_procure_item(采购子订单,关联回销售item)
+--   order ──1:N── order_change(变更记录:退/改/签)
+--
+-- 【航空基础数据】
+--   air_airline(航司) ──1:N── air_cabin_level(舱位等级)
+--   air_cabin_level ──1:N── air_cabin(舱位明细)
+--   air_airline ──1:N── air_fuel(燃油费)
+--   air_airline ──1:N── air_airline_accounts(采购账号)
+--   air_airline ──1:N── air_airline_notice(预定须知)
+--   air_airline ──1:N── air_gauge(客规)
+--   air_gauge ──1:N── air_gauge_type(退改签时间段)
+--   air_airline ──1:N── air_fuel_detail(航程里程)
+--   air_airport(机场) 独立引用, 被订单/客规/里程等引用
+--   air_plane_model(机型) 独立引用
+--   air_platform(采购平台) ──被── air_airline_accounts 引用
+--   air_region(行政区划) 独立引用, 被酒店/火车等业务使用
+--
+-- 【大客户校验流程】
+--   1. 查 c_member_corporate → 有效身份(user_id+airline_code+status=1)
+--   2. 查 c_member_corporate_apply → 审核中申报(user_id+airline_code+status IN(20,30))
+--   3. 查 c_member_corporate → 历史身份(user_id+airline_code+status=0, 检查expired_at)
+--   4. 写 c_member_corporate_apply.conflict_check = {检测结果JSON快照}
+--   5. 申报通过 → 写 c_member_corporate, 若冲突已有有效记录则拒绝
