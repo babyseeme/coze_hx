@@ -1,47 +1,45 @@
-/*
- * ============================================================
- * 华夏航旅 B2B2C — 增量迁移脚本 (v6 → v7)
- * ============================================================
- * 源库   : hx_b2b2c (v6, 48张基础设施表)
- * 目标   : 在v6基础上新增36张业务表
- * 数据库 : MySQL 8.0.35, utf8mb4_unicode_ci
- * 日期   : 2025-07
- * ============================================================
- *
- * 变更说明:
- *   本脚本仅包含 CREATE TABLE 语句, 不修改v6任何已有表
- *   v6的48张表(attachment/rules/tenant/pmc_*/tmc_*/mmc_*等)不受影响
- *
- * 新增表分组:
- *   ── C端用户体系 (9张) ──
- *     c_user / c_member / c_member_address / c_passenger
- *     corporate_group / corporate_contract / corporate_policy
- *     c_member_corporate / c_member_corporate_apply
- *
- *   ── 大客户白名单体系 (3张) ──
- *     corporate_whitelist_template / corporate_whitelist_batch / corporate_whitelist_member
- *
- *   ── 订单体系 (9张) ──
- *     `order` / order_sales / order_procurement
- *     order_item_flight / order_item_train / order_item_hotel / order_item_mall
- *     order_procure_item / order_change
- *
- *   ── 航空基础数据 (13张) ──
- *     air_airline / air_airport / air_region / air_plane_model
- *     air_cabin_level / air_cabin / air_fuel / air_fuel_detail
- *     air_gauge_type / air_gauge / air_airline_accounts / air_platform
- *     air_airline_notice
- *
- *   ── 大客户政策匹配 (2张) ──
- *     corporate_policy_rule / corporate_policy_match_log
- *
- * 执行方式:
- *   mysql -u root -p hx_b2b2c < hx_b2b2c_v6_to_v7_migration.sql
- *
- * 回滚方式:
- *   见文件末尾 DROP TABLE 语句(注释状态)
- * ============================================================
- */
+-- ============================================================
+-- 华夏航旅 B2B2C — 增量迁移脚本 (v6 -> v7)
+-- ============================================================
+-- 源库   : hx_b2b2c (v6, 48张基础设施表)
+-- 目标   : 在v6基础上新增36张业务表
+-- 数据库 : MySQL 8.0.35, utf8mb4_unicode_ci
+-- 日期   : 2025-07
+-- ============================================================
+--
+-- 变更说明:
+--   本脚本仅包含 CREATE TABLE 语句, 不修改v6任何已有表
+--   v6的48张表(attachment/rules/tenant/pmc_xxx/tmc_xxx/mmc_xxx等)不受影响
+--
+-- 新增表分组:
+--   [C端用户体系 9张]
+--     c_user / c_member / c_member_address / c_passenger
+--     corporate_group / corporate_contract / corporate_policy
+--     c_member_corporate / c_member_corporate_apply
+--
+--   [大客户白名单体系 3张]
+--     corporate_whitelist_template / corporate_whitelist_batch / corporate_whitelist_member
+--
+--   [订单体系 9张]
+--     `order` / order_sales / order_procurement
+--     order_item_flight / order_item_train / order_item_hotel / order_item_mall
+--     order_procure_item / order_change
+--
+--   [航空基础数据 13张]
+--     air_airline / air_airport / air_region / air_plane_model
+--     air_cabin_level / air_cabin / air_fuel / air_fuel_detail
+--     air_gauge_type / air_gauge / air_airline_accounts / air_platform
+--     air_airline_notice
+--
+--   [大客户政策匹配 2张]
+--     corporate_policy_rule / corporate_policy_match_log
+--
+-- 执行方式:
+--   mysql -u root -p hx_b2b2c < hx_b2b2c_v6_to_v7_migration.sql
+--
+-- 回滚方式:
+--   见文件末尾 DROP TABLE 语句(注释状态)
+-- ============================================================
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -1101,47 +1099,44 @@ CREATE TABLE IF NOT EXISTS `corporate_policy_match_log` (
 
 
 -- ================================================================
--- 回滚脚本 (如需回滚,取消以下注释执行)
+-- 回滚脚本 (如需回滚,取消以下 DROP 语句的注释执行)
 -- ================================================================
-/*
-
-DROP TABLE IF EXISTS c_user;
-DROP TABLE IF EXISTS c_member;
-DROP TABLE IF EXISTS c_member_address;
-DROP TABLE IF EXISTS c_passenger;
-DROP TABLE IF EXISTS corporate_group;
-DROP TABLE IF EXISTS corporate_contract;
-DROP TABLE IF EXISTS corporate_policy;
-DROP TABLE IF EXISTS c_member_corporate;
-DROP TABLE IF EXISTS c_member_corporate_apply;
-DROP TABLE IF EXISTS corporate_whitelist_template;
-DROP TABLE IF EXISTS corporate_whitelist_batch;
-DROP TABLE IF EXISTS corporate_whitelist_member;
-DROP TABLE IF EXISTS `order`;
-DROP TABLE IF EXISTS `order_sales`;
-DROP TABLE IF EXISTS `order_procurement`;
-DROP TABLE IF EXISTS `order_item_flight`;
-DROP TABLE IF EXISTS `order_item_train`;
-DROP TABLE IF EXISTS `order_item_hotel`;
-DROP TABLE IF EXISTS `order_item_mall`;
-DROP TABLE IF EXISTS `order_procure_item`;
-DROP TABLE IF EXISTS `order_change`;
-DROP TABLE IF EXISTS air_airline;
-DROP TABLE IF EXISTS air_airport;
-DROP TABLE IF EXISTS air_region;
-DROP TABLE IF EXISTS air_plane_model;
-DROP TABLE IF EXISTS air_cabin_level;
-DROP TABLE IF EXISTS air_cabin;
-DROP TABLE IF EXISTS air_fuel;
-DROP TABLE IF EXISTS air_fuel_detail;
-DROP TABLE IF EXISTS air_gauge_type;
-DROP TABLE IF EXISTS air_gauge;
-DROP TABLE IF EXISTS air_airline_accounts;
-DROP TABLE IF EXISTS air_platform;
-DROP TABLE IF EXISTS air_airline_notice;
-DROP TABLE IF EXISTS corporate_policy_rule;
-DROP TABLE IF EXISTS corporate_policy_match_log;
-*/
+-- DROP TABLE IF EXISTS c_user;
+-- DROP TABLE IF EXISTS c_member;
+-- DROP TABLE IF EXISTS c_member_address;
+-- DROP TABLE IF EXISTS c_passenger;
+-- DROP TABLE IF EXISTS corporate_group;
+-- DROP TABLE IF EXISTS corporate_contract;
+-- DROP TABLE IF EXISTS corporate_policy;
+-- DROP TABLE IF EXISTS c_member_corporate;
+-- DROP TABLE IF EXISTS c_member_corporate_apply;
+-- DROP TABLE IF EXISTS corporate_whitelist_template;
+-- DROP TABLE IF EXISTS corporate_whitelist_batch;
+-- DROP TABLE IF EXISTS corporate_whitelist_member;
+-- DROP TABLE IF EXISTS `order`;
+-- DROP TABLE IF EXISTS `order_sales`;
+-- DROP TABLE IF EXISTS `order_procurement`;
+-- DROP TABLE IF EXISTS `order_item_flight`;
+-- DROP TABLE IF EXISTS `order_item_train`;
+-- DROP TABLE IF EXISTS `order_item_hotel`;
+-- DROP TABLE IF EXISTS `order_item_mall`;
+-- DROP TABLE IF EXISTS `order_procure_item`;
+-- DROP TABLE IF EXISTS `order_change`;
+-- DROP TABLE IF EXISTS air_airline;
+-- DROP TABLE IF EXISTS air_airport;
+-- DROP TABLE IF EXISTS air_region;
+-- DROP TABLE IF EXISTS air_plane_model;
+-- DROP TABLE IF EXISTS air_cabin_level;
+-- DROP TABLE IF EXISTS air_cabin;
+-- DROP TABLE IF EXISTS air_fuel;
+-- DROP TABLE IF EXISTS air_fuel_detail;
+-- DROP TABLE IF EXISTS air_gauge_type;
+-- DROP TABLE IF EXISTS air_gauge;
+-- DROP TABLE IF EXISTS air_airline_accounts;
+-- DROP TABLE IF EXISTS air_platform;
+-- DROP TABLE IF EXISTS air_airline_notice;
+-- DROP TABLE IF EXISTS corporate_policy_rule;
+-- DROP TABLE IF EXISTS corporate_policy_match_log;
 
 
 SET FOREIGN_KEY_CHECKS = 1;
