@@ -8,7 +8,7 @@
  * 说明   : 本文件为新增表, 不修改已有 v6 表结构
  * ============================================================
  *
- * 新增表清单 (33 张):
+ * 新增表清单 (36 张):
  *
  * ── C端用户体系 (9 张) ──────────────────────────────
  *   c_user                     平台自然人(全局唯一)
@@ -20,6 +20,11 @@
  *   corporate_policy           大客户自动申报政策
  *   c_member_corporate         大客户成员身份(平台级唯一校验)
  *   c_member_corporate_apply   大客户成员申报记录(全量审计)
+ *
+ * ── 大客户白名单体系 (3 张) ──────────────────────────────
+ *   corporate_whitelist_template 航司白名单导入模板(每航司每类型一个)
+ *   corporate_whitelist_batch    白名单提交批次(一次提交=一个批次)
+ *   corporate_whitelist_member   白名单成员明细(航司视角名单数据)
  *
  * ── 订单体系 (9 张) ──────────────────────────────
  *   `order`                    主订单(大订单,C端一次下单行为)
@@ -236,30 +241,64 @@ CREATE TABLE `corporate_group` (
 -- ----------------------------------------------------------------
 DROP TABLE IF EXISTS `corporate_contract`;
 CREATE TABLE `corporate_contract` (
-  `id`              bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-  `group_id`        bigint UNSIGNED NOT NULL COMMENT 'corporate_group.id',
-  `airline_code`    varchar(10)  NOT NULL COMMENT '签约航司二字码(如: CA)',
-  `contract_no`     varchar(50)  DEFAULT '' COMMENT '大客户协议编号',
-  `corp_type`       varchar(20)  DEFAULT 'enterprise' COMMENT 'enterprise=企业大客户/gp=公务员',
-  `submit_methods`  varchar(50)  NOT NULL COMMENT '支持的申报方式: api/file/api+file',
-  `api_config`      json         DEFAULT NULL COMMENT 'API申报配置(接口地址/认证方式/报文格式)',
-  `file_template_id` bigint UNSIGNED DEFAULT 0 COMMENT '文件申报模板ID(attachment.id)',
-  `submit_cycle`    varchar(20)  DEFAULT 'realtime' COMMENT '申报周期: realtime/daily/weekly/monthly',
-  `review_days`     smallint     DEFAULT 0 COMMENT '预估审核天数(0=实时)',
-  `corp_code_rule`  varchar(100) DEFAULT '' COMMENT '大客户员工编号生成规则(如: {airline}-{group}-{seq})',
-  `discount_info`   varchar(200) DEFAULT '' COMMENT '优惠信息摘要(如: 经济舱95折/公务舱9折)',
-  `status`          tinyint      DEFAULT 1 COMMENT '1=有效,2=暂停,3=已过期',
-  `expire_at`       datetime     DEFAULT NULL COMMENT '协议到期时间',
-  `remark`          varchar(500) DEFAULT '',
-  `created_by`      bigint       DEFAULT 0,
-  `updated_by`      bigint       DEFAULT 0,
-  `created_at`      datetime     DEFAULT NULL,
-  `updated_at`      datetime     DEFAULT NULL,
-  `deleted_at`      timestamp    DEFAULT NULL,
+  `id`                bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `group_id`          bigint UNSIGNED NOT NULL COMMENT 'corporate_group.id',
+  `airline_code`      varchar(10)  NOT NULL COMMENT '签约航司二字码(如: CA)',
+  `contract_no`       varchar(50)  DEFAULT '' COMMENT '大客户协议编号',
+  `corp_type`         varchar(20)  DEFAULT 'enterprise' COMMENT 'enterprise=企业大客户/gp=公务员',
+
+  -- ====== 实名/非实名 & 成员约束 ======
+  `is_realname`       tinyint      NOT NULL DEFAULT 1 COMMENT '1=实名制(需白名单),0=非实名(年龄范围内即可)',
+  `age_min`           tinyint      DEFAULT 0 COMMENT '非实名最小年龄(0=不限, 如: 20)',
+  `age_max`           tinyint      DEFAULT 0 COMMENT '非实名最大年龄(0=不限, 如: 65)',
+  `multi_idcard`      tinyint      DEFAULT 0 COMMENT '1=支持多证件上报(如CZ多证件模板),0=单证件',
+
+  -- ====== 出票前置指令(写入PNR) ======
+  `pre_cmd_domestic`  varchar(200) DEFAULT '' COMMENT '国内出票前置指令(如: RMK IC CZ/2602342)',
+  `pre_cmd_intl`      varchar(200) DEFAULT '' COMMENT '国际出票前置指令(如: SSR CKIN CA HK1 VICO0WN10FTG)',
+
+  -- ====== 运价指令(写入PAT/QTE行) ======
+  `price_cmd_domestic` varchar(200) DEFAULT '' COMMENT '国内运价指令(如: PAT:A#CDK2602342)',
+  `price_cmd_intl`    varchar(200) DEFAULT '' COMMENT '国际运价指令(如: QTE:/CZ///#CV2602342)',
+
+  -- ====== 业务范围 ======
+  `biz_scope`         varchar(20)  DEFAULT 'both' COMMENT 'domestic=仅国内/intl=仅国际/both=国内+国际',
+  `discount_info`     varchar(200) DEFAULT '' COMMENT '优惠信息摘要(如: 经济舱95折/公务舱9折/无优惠送里程)',
+  `travel_target`     varchar(100) DEFAULT '' COMMENT '差旅指标(如: 20万/年)',
+
+  -- ====== 不适用日期/时段 ======
+  `exclude_dates`     json         DEFAULT NULL COMMENT '不适用日期规则(JSON数组)',
+  -- 示例: [{"type":"fixed","start":"2025-04-20","end":"2025-05-06","name":"五一节"},
+  --        {"type":"lunar","start":"正月初一前9天","end":"正月初一后8天","name":"春节"},
+  --        {"type":"yearly","start_month":9,"start_day":20,"end_month":10,"end_day":9,"name":"国庆+中秋"}]
+
+  -- ====== 申报方式配置 ======
+  `submit_methods`    varchar(50)  NOT NULL COMMENT '支持的申报方式: api/file/api+file',
+  `api_config`        json         DEFAULT NULL COMMENT 'API申报配置(接口地址/认证方式/报文格式)',
+  `whitelist_tpl_id`  bigint UNSIGNED DEFAULT 0 COMMENT '白名单模板ID(corporate_whitelist_template.id)',
+  `submit_cycle`      varchar(20)  DEFAULT 'realtime' COMMENT '申报周期: realtime/daily/weekly/monthly',
+  `review_days`       smallint     DEFAULT 0 COMMENT '预估审核天数(0=实时)',
+
+  -- ====== 协议有效期 ======
+  `protocol_start`    date         DEFAULT NULL COMMENT '协议开始日期(如: 2023-10-10)',
+  `protocol_end`      date         DEFAULT NULL COMMENT '协议结束日期(如: 2026-12-31)',
+  `current_start`     date         DEFAULT NULL COMMENT '当前有效期开始(如: 2023-10-10,每年续签会更新)',
+  `current_end`       date         DEFAULT NULL COMMENT '当前有效期结束(如: 2024-10-10)',
+  `corp_code_rule`    varchar(100) DEFAULT '' COMMENT '大客户员工编号生成规则(如: {airline}-{group}-{seq})',
+
+  -- ====== 通用字段 ======
+  `status`            tinyint      DEFAULT 1 COMMENT '1=有效,2=暂停,3=已过期',
+  `remark`            varchar(500) DEFAULT '',
+  `created_by`        bigint       DEFAULT 0,
+  `updated_by`        bigint       DEFAULT 0,
+  `created_at`        datetime     DEFAULT NULL,
+  `updated_at`        datetime     DEFAULT NULL,
+  `deleted_at`        timestamp    DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_group_airline` (`group_id`, `airline_code`),
   KEY `idx_airline_status` (`airline_code`, `status`),
-  KEY `idx_corp_type` (`corp_type`, `status`)
+  KEY `idx_corp_type` (`corp_type`, `status`),
+  KEY `idx_realname` (`is_realname`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大客户签约关系(集团×航司,航司特定配置)';
 
 
@@ -409,6 +448,148 @@ CREATE TABLE `c_member_corporate_apply` (
 --   "operator_id": 123,
 --   "confirmed_at": "2025-07-01 10:31:00"
 -- }
+
+
+-- ----------------------------------------------------------------
+-- 9-3. `corporate_whitelist_template` — 航司白名单导入模板
+--    各航司白名单格式完全不同,此表存储航司要求的字段映射与校验规则
+--    同一航司可能有多套模板(如CZ有单证件/多证件两种)
+-- ----------------------------------------------------------------
+DROP TABLE IF EXISTS `corporate_whitelist_template`;
+CREATE TABLE `corporate_whitelist_template` (
+  `id`                bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `airline_code`      char(2)      NOT NULL COMMENT '航司二字码',
+  `template_name`     varchar(100) NOT NULL COMMENT '模板名称(如: CZ单证件白名单/CZ多证件白名单/3U白名单)',
+  `template_code`     varchar(50)  NOT NULL COMMENT '模板编码(如: CZ_SINGLE_ID/CZ_MULTI_ID/3U_STANDARD)',
+  `field_config`      json         NOT NULL COMMENT '字段配置(JSON,定义每个字段的名称/类型/必填/校验规则)',
+  `sample_row`        json         DEFAULT NULL COMMENT '示例行数据(供前端展示/下载模板)',
+  `max_rows_per_batch` int         DEFAULT 5000 COMMENT '单次最大导入行数',
+  `supported_actions`  varchar(50) DEFAULT 'A,D' COMMENT '支持的操作类型: A=新增,D=删除,U=更新',
+  `encoding`          varchar(20)  DEFAULT 'UTF-8' COMMENT '文件编码要求',
+  `file_format`       varchar(10)  DEFAULT 'xlsx' COMMENT '文件格式: xlsx/csv/txt',
+  `submit_method`     varchar(30)  NOT NULL DEFAULT 'file' COMMENT '提交方式: api/file/both',
+  `api_endpoint`      varchar(500) DEFAULT '' COMMENT 'API提交地址(如航司提供)',
+  `api_config`        json         DEFAULT NULL COMMENT 'API鉴权/请求格式配置',
+  `remark`            varchar(500) DEFAULT '' COMMENT '模板说明/注意事项',
+  `is_active`         tinyint      NOT NULL DEFAULT 1 COMMENT '1=启用,0=停用',
+  `created_at`        datetime     DEFAULT NULL,
+  `updated_at`        datetime     DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_template_code` (`template_code`),
+  KEY `idx_airline` (`airline_code`, `is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='航司白名单导入模板(各航司格式不同)';
+
+-- field_config JSON 示例:
+-- {
+--   "fields": [
+--     { "key": "name_cn",      "label": "中文姓名",     "type": "string",  "required": true,  "max_length": 20,  "col_index": 0 },
+--     { "key": "name_en",      "label": "英文姓名",     "type": "string",  "required": true,  "max_length": 40,  "col_index": 1 },
+--     { "key": "id_type",      "label": "证件类型",     "type": "enum",    "required": true,  "options": ["NI","PP","HX","HY"],  "col_index": 2 },
+--     { "key": "id_number",    "label": "证件号码",     "type": "string",  "required": true,  "max_length": 30,  "col_index": 3 },
+--     { "key": "birthday",     "label": "出生日期",     "type": "date",    "required": false, "format": "YYYYMMDD",  "col_index": 4 },
+--     { "key": "corp_code",    "label": "大客户编码",   "type": "string",  "required": true,  "max_length": 20,  "col_index": 5 },
+--     { "key": "expiry_date",  "label": "协议截止日期", "type": "date",    "required": false, "format": "YYYYMMDD",  "col_index": 6 },
+--     { "key": "action",       "label": "记录状态",     "type": "enum",    "required": true,  "options": ["A","D"],  "col_index": 7 }
+--   ],
+--   "id_type_mapping": { "NI": "身份证", "PP": "护照", "HX": "回乡证", "HY": "国际海员证" }
+-- }
+
+
+-- ----------------------------------------------------------------
+-- 9-4. `corporate_whitelist_batch` — 白名单提交批次
+--    一次白名单提交(无论API还是文件)生成一个批次记录
+--    一个批次只属于一个签约关系(contract_id)
+-- ----------------------------------------------------------------
+DROP TABLE IF EXISTS `corporate_whitelist_batch`;
+CREATE TABLE `corporate_whitelist_batch` (
+  `id`                bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `batch_no`          varchar(40)  NOT NULL COMMENT '批次号(如: WL20250701123456)',
+  `contract_id`       bigint UNSIGNED NOT NULL COMMENT '签约关系ID(corporate_contract.id)',
+  `group_id`          bigint UNSIGNED NOT NULL COMMENT '集团ID(corporate_group.id)',
+  `airline_code`      char(2)      NOT NULL COMMENT '航司二字码(冗余)',
+  `template_id`       bigint UNSIGNED DEFAULT 0 COMMENT '使用的模板ID(corporate_whitelist_template.id)',
+  `submit_method`     varchar(20)  NOT NULL COMMENT 'api/file',
+  `action_type`       char(1)      DEFAULT 'A' COMMENT 'A=新增,D=删除,U=更新',
+  `total_count`       int          NOT NULL DEFAULT 0 COMMENT '总条数',
+  `success_count`     int          NOT NULL DEFAULT 0 COMMENT '成功条数',
+  `fail_count`        int          NOT NULL DEFAULT 0 COMMENT '失败条数',
+  `status`            tinyint      NOT NULL DEFAULT 1 COMMENT '1=待提交,2=提交中,3=部分成功,4=全部成功,5=全部失败,6=已撤回',
+  `file_id`           bigint UNSIGNED DEFAULT 0 COMMENT '上传文件ID(file方式,attachment.id)',
+  `file_original_name` varchar(255) DEFAULT '' COMMENT '原始文件名',
+  `api_request`       json         DEFAULT NULL COMMENT 'API请求报文快照',
+  `api_response`      json         DEFAULT NULL COMMENT 'API响应报文快照',
+  `submit_at`         datetime     DEFAULT NULL COMMENT '提交时间',
+  `finished_at`       datetime     DEFAULT NULL COMMENT '处理完成时间',
+  `review_note`       varchar(500) DEFAULT '' COMMENT '审核/处理备注',
+  `operator_id`       bigint UNSIGNED DEFAULT 0 COMMENT '操作人ID',
+  `operator_name`     varchar(50)  DEFAULT '' COMMENT '操作人姓名(冗余)',
+  `remark`            varchar(500) DEFAULT '',
+  `created_at`        datetime     DEFAULT NULL,
+  `updated_at`        datetime     DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_batch_no` (`batch_no`),
+  KEY `idx_contract` (`contract_id`, `status`),
+  KEY `idx_airline_status` (`airline_code`, `status`),
+  KEY `idx_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='白名单提交批次(一次提交=一个批次)';
+
+
+-- ----------------------------------------------------------------
+-- 9-5. `corporate_whitelist_member` — 白名单成员明细
+--    上报给航司的原始成员数据,每行对应名单中的一条记录
+--    与 c_member_corporate 不同: 此表是航司视角的名单数据,
+--    c_member_corporate 是平台视角的会员身份
+-- ----------------------------------------------------------------
+DROP TABLE IF EXISTS `corporate_whitelist_member`;
+CREATE TABLE `corporate_whitelist_member` (
+  `id`                bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `batch_id`          bigint UNSIGNED NOT NULL COMMENT '批次ID(corporate_whitelist_batch.id)',
+  `contract_id`       bigint UNSIGNED NOT NULL COMMENT '签约关系ID(冗余)',
+  `airline_code`      char(2)      NOT NULL COMMENT '航司二字码(冗余)',
+  `line_no`           int          NOT NULL DEFAULT 0 COMMENT '原始行号(文件导入时)',
+  `action`            char(1)      DEFAULT 'A' COMMENT 'A=新增,D=删除',
+  -- === 航司要求的标准字段(全量存储,不同航司不同模板时部分字段为空) ===
+  `name_cn`           varchar(50)  DEFAULT '' COMMENT '中文姓名',
+  `name_en`           varchar(80)  DEFAULT '' COMMENT '英文姓名(姓/名拼接后)',
+  `last_name_en`      varchar(40)  DEFAULT '' COMMENT '英文姓',
+  `first_name_en`     varchar(40)  DEFAULT '' COMMENT '英文名',
+  `id_type`           varchar(10)  DEFAULT '' COMMENT '证件类型(NI=身份证/PP=护照/HX=回乡证/HY=海员证/TW=台胞证/OTHER=其他)',
+  `id_number`         varchar(50)  DEFAULT '' COMMENT '证件号码',
+  `id_number_2_type`  varchar(10)  DEFAULT '' COMMENT '第二证件类型',
+  `id_number_2`       varchar(50)  DEFAULT '' COMMENT '第二证件号码(如CZ多证件模式)',
+  `id_number_3_type`  varchar(10)  DEFAULT '' COMMENT '第三证件类型',
+  `id_number_3`       varchar(50)  DEFAULT '' COMMENT '第三证件号码',
+  `birthday`          date         DEFAULT NULL COMMENT '出生日期',
+  `gender`            char(1)      DEFAULT '' COMMENT 'M=男/F=女',
+  `mobile`            varchar(20)  DEFAULT '' COMMENT '手机号码(CA国航要求)',
+  `corp_member_code`  varchar(50)  DEFAULT '' COMMENT '大客户成员编码(3U川航/企业卡号等)',
+  `employee_type`     varchar(20)  DEFAULT '' COMMENT '员工类型(CA国航: 普通管理员/管理员/领导)',
+  `expiry_date`       date         DEFAULT NULL COMMENT '协议截止日期(3U川航要求)',
+  `extra_fields`      json         DEFAULT NULL COMMENT '模板扩展字段(航司特有字段)',
+  -- === 关联与状态 ===
+  `user_id`           bigint UNSIGNED DEFAULT 0 COMMENT '关联c_user.id(匹配后回填)',
+  `member_id`         bigint UNSIGNED DEFAULT 0 COMMENT '关联c_member.id(匹配后回填)',
+  `passenger_id`      bigint UNSIGNED DEFAULT 0 COMMENT '关联c_passenger.id(匹配后回填)',
+  `match_status`      tinyint      DEFAULT 0 COMMENT '0=未匹配,1=已匹配,2=多人匹配需人工,3=匹配失败',
+  `match_log`         varchar(500) DEFAULT '' COMMENT '匹配日志',
+  `submit_status`     tinyint      DEFAULT 1 COMMENT '1=待提交,2=已提交,3=已通过,4=已拒绝,5=提交失败',
+  `submit_error`      varchar(500) DEFAULT '' COMMENT '提交/审核失败原因',
+  `corporate_member_id` bigint UNSIGNED DEFAULT 0 COMMENT '审核通过后写入 c_member_corporate.id',
+  `remark`            varchar(500) DEFAULT '',
+  `created_at`        datetime     DEFAULT NULL,
+  `updated_at`        datetime     DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_batch` (`batch_id`, `submit_status`),
+  KEY `idx_contract` (`contract_id`, `action`),
+  KEY `idx_id_number` (`id_type`, `id_number`),
+  KEY `idx_user` (`user_id`, `airline_code`),
+  KEY `idx_match` (`match_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='白名单成员明细(航司视角名单数据)';
+
+-- extra_fields JSON 示例(3U川航):
+-- { "record_status": "A", "agreement_expiry": "20261231", "corp_code": "SICHUAN-CORP-001" }
+-- extra_fields JSON 示例(CA国航):
+-- { "employee_type": "管理员", "passport_expiry": "2030-06-15" }
 
 
 -- ================================================================
@@ -1329,6 +1510,13 @@ CREATE TABLE `corporate_policy_match_log` (
 --   corporate_contract ──1:N── c_member_corporate_apply(申报记录,uk_guard防重复)
 --   corporate_contract ──1:N── corporate_policy_match_log(匹配日志)
 --
+-- 【大客户白名单体系】
+--   corporate_contract ──1:1── corporate_whitelist_template(签约关系对应的导入模板)
+--   corporate_whitelist_template ──1:N── corporate_whitelist_batch(提交批次)
+--   corporate_whitelist_batch ──1:N── corporate_whitelist_member(成员明细)
+--   corporate_whitelist_member → 上报航司后审核 → c_member_corporate(平台身份)
+--   流程: 比对名单 → 生成批次 → 提交航司 → 回填结果 → 同步到c_member_corporate
+--
 -- 【订单体系】
 --   order(主订单) ──1:N── order_sales(销售业务订单)
 --   order ──1:N── order_procurement(采购业务订单)
@@ -1356,3 +1544,17 @@ CREATE TABLE `corporate_policy_match_log` (
 --   3. 查 c_member_corporate → 历史身份(user_id+airline_code+status=0, 检查expired_at)
 --   4. 写 c_member_corporate_apply.conflict_check = {检测结果JSON快照}
 --   5. 申报通过 → 写 c_member_corporate, 若冲突已有有效记录则拒绝
+--
+-- 【白名单提交流程】
+--   1. corporate_contract.is_realname=1 时需提交白名单
+--   2. 按签约关系查找 corporate_whitelist_template → 确定必填字段和提交方式
+--   3. 生成 corporate_whitelist_batch(批次) → 写入 corporate_whitelist_member(成员)
+--   4. 按提交方式处理:
+--      API提交 → 调用航司接口 → 实时回填结果到 member.status
+--      文件上传 → 生成Excel → 人工提交 → 手动回填结果
+--   5. 成功(status=20)的成员 → 同步写入 c_member_corporate(平台身份)
+--
+-- 【非实名集团使用流程】
+--   corporate_contract.is_realname=0 → 无需白名单
+--   下单时校验: 旅客年龄在 min_age~max_age 范围内 → 自动应用优惠
+--   校验日期: 不在 blackout_dates 指定的禁用日期内
