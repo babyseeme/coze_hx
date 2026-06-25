@@ -8,14 +8,15 @@
  * 说明   : 本文件为新增表, 不修改已有 v6 表结构
  * ============================================================
  *
- * 新增表清单 (17 张):
+ * 新增表清单 (18 张):
  *
- * ── C端用户体系 (8 张) ──────────────────────────────
+ * ── C端用户体系 (9 张) ──────────────────────────────
  *   c_user                     平台自然人(全局唯一)
  *   c_member                   商户会员(商户维度隔离)
  *   c_member_address           会员收货地址
  *   c_passenger                常用旅客(商户会员维度)
- *   corporate_group            大客户集团配置(平台级)
+ *   corporate_group            大客户集团主体(平台级,可跨航司签约)
+ *   corporate_contract         大客户签约关系(集团×航司,航司特定配置)
  *   corporate_policy           大客户自动申报政策
  *   c_member_corporate         大客户成员身份(平台级唯一校验)
  *   c_member_corporate_apply   大客户成员申报记录(全量审计)
@@ -34,12 +35,13 @@
  * ============================================================
  * 核心设计约定:
  *   1. C端用户三层隔离: c_user(平台自然人) → c_member(商户会员) → c_passenger(常用旅客)
- *   2. 大客户身份平台级唯一: 同一自然人在同一航司只能有一个有效大客户身份
- *   3. 订单三层结构: order(主订单) → order_sales/order_procurement(业务订单) → order_item_*(子订单)
- *   4. 销售与采购分轨: 销售单面向客户,采购单面向供应商,通过 order_procure_item 关联
- *   5. 子订单按业务类型分表: 各业务字段内聚,避免大量 NULL 列
- *   6. 全库零外键: 表关联由应用层 ORM 维护,便于分库分表
- *   7. 敏感字段三件套: phone/email 使用 明文(脱敏) + 密文(AES) + 哈希(HMAC)
+ *   2. 大客户集团可跨航司: corporate_group(集团主体) + corporate_contract(集团×航司签约)
+ *   3. 大客户身份平台级唯一: 同一自然人在同一航司只能有一个有效大客户身份
+ *   4. 订单三层结构: order(主订单) → order_sales/order_procurement(业务订单) → order_item_*(子订单)
+ *   5. 销售与采购分轨: 销售单面向客户,采购单面向供应商,通过 order_procure_item 关联
+ *   6. 子订单按业务类型分表: 各业务字段内聚,避免大量 NULL 列
+ *   7. 全库零外键: 表关联由应用层 ORM 维护,便于分库分表
+ *   8. 敏感字段三件套: phone/email 使用 明文(脱敏) + 密文(AES) + 哈希(HMAC)
  * ============================================================
  */
 
@@ -180,15 +182,43 @@ CREATE TABLE `c_passenger` (
 
 
 -- ----------------------------------------------------------------
--- 5. corporate_group — 大客户集团配置
---    航司与集团签约的大客户关系,平台级,无 tenant_id
---    一个集团只与一个航司签约(一对一);跨航司需建多条记录
+-- 5. corporate_group — 大客户集团主体
+--    平台级,无 tenant_id; 一个集团可跨航司签约
+--    如 "华为" 同时与 CA 和 MU 签约, 集团主体只有一条记录
 -- ----------------------------------------------------------------
 DROP TABLE IF EXISTS `corporate_group`;
 CREATE TABLE `corporate_group` (
   `id`              bigint UNSIGNED NOT NULL AUTO_INCREMENT,
   `group_name`      varchar(100) NOT NULL COMMENT '大客户集团名称(如: 华为技术有限公司)',
-  `group_code`      varchar(50)  NOT NULL COMMENT '集团编码(唯一标识,如: HUAWEI-CA)',
+  `group_code`      varchar(50)  NOT NULL COMMENT '集团编码(唯一标识,如: HUAWEI)',
+  `unified_social_credit` varchar(20) DEFAULT '' COMMENT '统一社会信用代码(企业唯一标识)',
+  `contact_name`    varchar(30)  DEFAULT '' COMMENT '集团联系人',
+  `contact_phone`   varchar(20)  DEFAULT '' COMMENT '集团联系电话',
+  `address`         varchar(300) DEFAULT '' COMMENT '集团地址',
+  `industry`        varchar(30)  DEFAULT '' COMMENT '行业分类(如: 通信/互联网/金融)',
+  `scale`           varchar(20)  DEFAULT '' COMMENT '企业规模(如: 万人以上/千人/百人)',
+  `remark`          varchar(500) DEFAULT '' COMMENT '备注',
+  `status`          tinyint      DEFAULT 1 COMMENT '1=有效,2=停用',
+  `created_by`      bigint       DEFAULT 0,
+  `updated_by`      bigint       DEFAULT 0,
+  `created_at`      datetime     DEFAULT NULL,
+  `updated_at`      datetime     DEFAULT NULL,
+  `deleted_at`      timestamp    DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_group_code` (`group_code`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大客户集团主体(平台级,一个集团可跨航司签约)';
+
+
+-- ----------------------------------------------------------------
+-- 6. corporate_contract — 大客户签约关系
+--    集团×航司 = 一条签约记录; 华为×CA 和 华为×MU 各一条
+--    航司特定的配置(协议号/申报方式/优惠/到期)都在这里
+-- ----------------------------------------------------------------
+DROP TABLE IF EXISTS `corporate_contract`;
+CREATE TABLE `corporate_contract` (
+  `id`              bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `group_id`        bigint UNSIGNED NOT NULL COMMENT 'corporate_group.id',
   `airline_code`    varchar(10)  NOT NULL COMMENT '签约航司二字码(如: CA)',
   `contract_no`     varchar(50)  DEFAULT '' COMMENT '大客户协议编号',
   `corp_type`       varchar(20)  DEFAULT 'enterprise' COMMENT 'enterprise=企业大客户/gp=公务员',
@@ -201,29 +231,32 @@ CREATE TABLE `corporate_group` (
   `discount_info`   varchar(200) DEFAULT '' COMMENT '优惠信息摘要(如: 经济舱95折/公务舱9折)',
   `status`          tinyint      DEFAULT 1 COMMENT '1=有效,2=暂停,3=已过期',
   `expire_at`       datetime     DEFAULT NULL COMMENT '协议到期时间',
+  `remark`          varchar(500) DEFAULT '',
   `created_by`      bigint       DEFAULT 0,
   `updated_by`      bigint       DEFAULT 0,
   `created_at`      datetime     DEFAULT NULL,
   `updated_at`      datetime     DEFAULT NULL,
   `deleted_at`      timestamp    DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_group_code` (`group_code`),
+  UNIQUE KEY `uk_group_airline` (`group_id`, `airline_code`),
   KEY `idx_airline_status` (`airline_code`, `status`),
   KEY `idx_corp_type` (`corp_type`, `status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大客户集团配置(平台级,航司×集团一对一)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大客户签约关系(集团×航司,航司特定配置)';
 
 
 -- ----------------------------------------------------------------
--- 6. corporate_policy — 大客户自动申报政策
---    平台方配置: 满足什么条件的散客自动申报为某大客户集团成员
+-- 7. corporate_policy — 大客户自动申报政策
+--    平台方配置: 满足什么条件的散客自动申报为某大客户集团的某航司签约成员
+--    指向 contract_id (集团×航司签约关系), 非直接指向 group_id
 -- ----------------------------------------------------------------
 DROP TABLE IF EXISTS `corporate_policy`;
 CREATE TABLE `corporate_policy` (
   `id`              bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-  `policy_name`     varchar(100) NOT NULL COMMENT '政策名称(如: CA航司华北散客自动申报)',
+  `policy_name`     varchar(100) NOT NULL COMMENT '政策名称(如: CA航司华北散客自动申报华为)',
   `policy_code`     varchar(50)  NOT NULL COMMENT '政策编码(唯一)',
   `airline_code`    varchar(10)  NOT NULL COMMENT '适用航司',
-  `corporate_id`    bigint UNSIGNED NOT NULL COMMENT '自动申报到此大客户集团 corporate_group.id',
+  `group_id`        bigint UNSIGNED NOT NULL COMMENT 'corporate_group.id(目标集团)',
+  `contract_id`     bigint UNSIGNED NOT NULL COMMENT 'corporate_contract.id(目标签约关系)',
   `conditions`      json         NOT NULL COMMENT '申报条件(航线/舱位/消费金额/航班次数等)',
   `priority`        smallint     DEFAULT 0 COMMENT '优先级(数值越大越高,同航司多政策时取最高)',
   `auto_submit`     tinyint      DEFAULT 1 COMMENT '1=匹配后自动提交申报,2=仅提示需人工确认',
@@ -236,7 +269,8 @@ CREATE TABLE `corporate_policy` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_policy_code` (`policy_code`),
   KEY `idx_airline_status` (`airline_code`, `status`),
-  KEY `idx_corporate` (`corporate_id`, `status`)
+  KEY `idx_contract` (`contract_id`, `status`),
+  KEY `idx_group` (`group_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大客户自动申报政策';
 
 -- conditions JSON 示例:
@@ -251,10 +285,11 @@ CREATE TABLE `corporate_policy` (
 
 
 -- ----------------------------------------------------------------
--- 7. c_member_corporate — 大客户成员身份
+-- 8. c_member_corporate — 大客户成员身份
 --    平台级,同一自然人在同一航司只能有一个有效身份(status=1)
 --    使用 STORED 生成列 + UNIQUE 实现部分唯一约束(MySQL 8.0)
 --    全量历史(含退出/过期/冻结)保留在本表,申报细节在 apply 表
+--    contract_id 指向 集团×航司签约关系; group_id 冗余便于按集团聚合查询
 -- ----------------------------------------------------------------
 DROP TABLE IF EXISTS `c_member_corporate`;
 CREATE TABLE `c_member_corporate` (
@@ -263,7 +298,8 @@ CREATE TABLE `c_member_corporate` (
   `tenant_id`       bigint UNSIGNED NOT NULL COMMENT '申报商户ID(哪个商户提交的申报)',
   `member_id`       bigint UNSIGNED NOT NULL COMMENT 'c_member.id(冗余,商户维度查询)',
   `airline_code`    varchar(10)  NOT NULL COMMENT '航司二字码',
-  `corporate_id`    bigint UNSIGNED NOT NULL COMMENT 'corporate_group.id',
+  `group_id`        bigint UNSIGNED NOT NULL COMMENT 'corporate_group.id(所属集团)',
+  `contract_id`     bigint UNSIGNED NOT NULL COMMENT 'corporate_contract.id(所属签约关系)',
   `corp_member_no`  varchar(50)  DEFAULT '' COMMENT '大客户成员编号(航司分配或按规则生成)',
   `corp_type`       varchar(20)  DEFAULT 'enterprise' COMMENT 'enterprise/gp',
   `status`          tinyint      NOT NULL DEFAULT 1 COMMENT '1=有效,2=已退出,3=已过期,4=处罚冻结',
@@ -284,15 +320,17 @@ CREATE TABLE `c_member_corporate` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_airline_active` (`uk_guard`),
   KEY `idx_tenant_member` (`tenant_id`, `member_id`),
-  KEY `idx_corporate` (`corporate_id`, `status`),
+  KEY `idx_contract` (`contract_id`, `status`),
+  KEY `idx_group` (`group_id`, `status`),
   KEY `idx_user_airline` (`user_id`, `airline_code`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大客户成员身份(平台级,同航司唯一)';
 
 
 -- ----------------------------------------------------------------
--- 8. c_member_corporate_apply — 大客户成员申报记录
+-- 9. c_member_corporate_apply — 大客户成员申报记录
 --    全量审计,记录每一次申报(含自动/人工/API/文件)
 --    使用 STORED 生成列防止同一人同一航司重复提交待审核申报
+--    contract_id 指向 集团×航司签约关系; group_id 冗余便于按集团聚合查询
 -- ----------------------------------------------------------------
 DROP TABLE IF EXISTS `c_member_corporate_apply`;
 CREATE TABLE `c_member_corporate_apply` (
@@ -302,7 +340,8 @@ CREATE TABLE `c_member_corporate_apply` (
   `tenant_id`         bigint UNSIGNED NOT NULL COMMENT '申报商户ID',
   `member_id`         bigint UNSIGNED NOT NULL COMMENT 'c_member.id',
   `airline_code`      varchar(10)  NOT NULL COMMENT '航司二字码',
-  `corporate_id`      bigint UNSIGNED NOT NULL COMMENT '目标大客户集团 corporate_group.id',
+  `group_id`          bigint UNSIGNED NOT NULL COMMENT 'corporate_group.id(目标集团)',
+  `contract_id`       bigint UNSIGNED NOT NULL COMMENT 'corporate_contract.id(目标签约关系)',
   `corp_member_no`    varchar(50)  DEFAULT '' COMMENT '生成的大客户成员编号',
   `submit_method`     varchar(20)  NOT NULL COMMENT 'api/file',
   `submit_status`     tinyint      NOT NULL DEFAULT 1 COMMENT '1=待提交,2=已提交,3=审核中,4=已通过,5=已拒绝,6=已撤回,7=提交失败',
@@ -332,7 +371,8 @@ CREATE TABLE `c_member_corporate_apply` (
   UNIQUE KEY `uk_user_airline_pending` (`uk_guard`),
   KEY `idx_user_airline` (`user_id`, `airline_code`, `submit_status`),
   KEY `idx_tenant_member` (`tenant_id`, `member_id`),
-  KEY `idx_corporate` (`corporate_id`, `submit_status`),
+  KEY `idx_contract` (`contract_id`, `submit_status`),
+  KEY `idx_group` (`group_id`),
   KEY `idx_batch` (`batch_no`),
   KEY `idx_status_retry` (`submit_status`, `next_retry_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大客户成员申报记录(全量审计)';
@@ -343,7 +383,7 @@ CREATE TABLE `c_member_corporate_apply` (
 --   "active_corporate": null,                            // 当前有效身份(无则null)
 --   "pending_apply": null,                               // 待审核申报(无则null)
 --   "history_corporates": [                              // 历史身份
---     { "corporate_id": 5, "group_name": "华为", "status": 2, "exited_at": "2024-12-01" }
+--     { "contract_id": 5, "group_name": "华为", "airline_code": "CA", "status": 2, "exited_at": "2024-12-01" }
 --   ],
 --   "warning": "该用户曾有CA航司大客户身份(华为,已退出)",
 --   "operator_confirmed": true,                          // 人工确认(有历史身份时)
@@ -358,7 +398,7 @@ CREATE TABLE `c_member_corporate_apply` (
 
 
 -- ----------------------------------------------------------------
--- 9. `order` — 主订单(大订单)
+-- 10. `order` — 主订单(大订单)
 --    C端用户一次下单行为生成一个主订单
 --    拆单场景: 子订单的 order_id 指向新主订单, parent_order_id 指向原主订单
 -- ----------------------------------------------------------------
@@ -392,7 +432,8 @@ CREATE TABLE `order` (
   `payment_no`       varchar(64)  DEFAULT '' COMMENT '支付流水号',
   `source`           varchar(20)  DEFAULT 'mini' COMMENT '下单来源: mini/web/h5/app/ota/api',
   `channel_id`       bigint UNSIGNED DEFAULT 0 COMMENT '分销渠道ID(分销商场景)',
-  `corporate_id`     bigint UNSIGNED DEFAULT 0 COMMENT '大客户ID(大客户订单关联 corporate_group.id)',
+  `contract_id`      bigint UNSIGNED DEFAULT 0 COMMENT '大客户签约ID(大客户订单关联 corporate_contract.id)',
+  `group_id`         bigint UNSIGNED DEFAULT 0 COMMENT '大客户集团ID(冗余, corporate_group.id)',
   `remark`           varchar(500) DEFAULT '' COMMENT '客户备注',
   `internal_remark`  varchar(500) DEFAULT '' COMMENT '内部备注(仅B端可见)',
   `ip`               varchar(45)  DEFAULT '' COMMENT '下单IP',
@@ -404,13 +445,14 @@ CREATE TABLE `order` (
   KEY `idx_tenant_status` (`tenant_id`, `status`, `created_at`),
   KEY `idx_user` (`user_id`),
   KEY `idx_parent` (`parent_order_id`),
-  KEY `idx_corporate` (`corporate_id`),
+  KEY `idx_contract` (`contract_id`),
+  KEY `idx_group` (`group_id`),
   KEY `idx_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='主订单(大订单)';
 
 
 -- ----------------------------------------------------------------
--- 10. order_sales — 销售业务订单
+-- 11. order_sales — 销售业务订单
 --     按业务类型拆分,每个销售单只属于一种业务类型
 --     绑定销售员,管理销售侧状态流转
 -- ----------------------------------------------------------------
@@ -433,7 +475,8 @@ CREATE TABLE `order_sales` (
   `insurance_fee`    decimal(12,2) DEFAULT 0.00 COMMENT '保险费合计',
   `source`           varchar(20)  DEFAULT 'mini' COMMENT '来源: mini/web/h5/app/ota/api',
   `channel_id`       bigint UNSIGNED DEFAULT 0 COMMENT '分销渠道ID',
-  `corporate_id`     bigint UNSIGNED DEFAULT 0 COMMENT '大客户ID(大客户订单)',
+  `contract_id`      bigint UNSIGNED DEFAULT 0 COMMENT '大客户签约ID(corporate_contract.id)',
+  `group_id`         bigint UNSIGNED DEFAULT 0 COMMENT '大客户集团ID(冗余)',
   `contact_name`     varchar(30)  DEFAULT '' COMMENT '联系人',
   `contact_phone`    varchar(20)  DEFAULT '' COMMENT '联系电话',
   `remark`           varchar(500) DEFAULT '' COMMENT '客户备注',
@@ -445,12 +488,13 @@ CREATE TABLE `order_sales` (
   KEY `idx_order` (`order_id`),
   KEY `idx_tenant_biz_status` (`tenant_id`, `biz_type`, `status`),
   KEY `idx_tenant_staff` (`tenant_id`, `staff_id`),
-  KEY `idx_corporate` (`corporate_id`)
+  KEY `idx_contract` (`contract_id`),
+  KEY `idx_group` (`group_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售业务订单(按业务类型拆分,绑销售员)';
 
 
 -- ----------------------------------------------------------------
--- 11. order_procurement — 采购业务订单
+-- 12. order_procurement — 采购业务订单
 --     按供应商渠道拆分,每个采购单指向一个供应商
 --     绑定采购员,管理采购侧状态流转(出票/确认/失败重采)
 -- ----------------------------------------------------------------
@@ -493,7 +537,7 @@ CREATE TABLE `order_procurement` (
 
 
 -- ----------------------------------------------------------------
--- 12. order_item_flight — 机票子订单
+-- 13. order_item_flight — 机票子订单
 --     人×程 = 最小操作单元, 3人往返 = 6个item
 --     包含通用字段 + 机票业务字段(合并,无需额外JOIN)
 --     多程联程: 同一次行程的多个item共享 journey_id
@@ -569,7 +613,7 @@ CREATE TABLE `order_item_flight` (
 
 
 -- ----------------------------------------------------------------
--- 13. order_item_train — 火车票子订单
+-- 14. order_item_train — 火车票子订单
 --     包含通用字段 + 火车票业务字段
 -- ----------------------------------------------------------------
 DROP TABLE IF EXISTS `order_item_train`;
@@ -632,7 +676,7 @@ CREATE TABLE `order_item_train` (
 
 
 -- ----------------------------------------------------------------
--- 14. order_item_hotel — 酒店子订单
+-- 15. order_item_hotel — 酒店子订单
 --     包含通用字段 + 酒店业务字段
 --     酒店改取消/修改走 order_change,无"改签"概念,故无 parent_item_id
 -- ----------------------------------------------------------------
@@ -690,7 +734,7 @@ CREATE TABLE `order_item_hotel` (
 
 
 -- ----------------------------------------------------------------
--- 15. order_item_mall — 商城子订单
+-- 16. order_item_mall — 商城子订单
 --     包含通用字段 + 商城业务字段
 --     无"改签"概念,无出行时间;有物流和积分逻辑
 -- ----------------------------------------------------------------
@@ -737,7 +781,7 @@ CREATE TABLE `order_item_mall` (
 
 
 -- ----------------------------------------------------------------
--- 16. order_procure_item — 采购子订单
+-- 17. order_procure_item — 采购子订单
 --     采购侧的最小操作单元,关联销售item
 --     通过 biz_type + sales_item_id 关联到对应的销售item表:
 --       flight → order_item_flight.id
@@ -775,7 +819,7 @@ CREATE TABLE `order_procure_item` (
 
 
 -- ----------------------------------------------------------------
--- 17. order_change — 订单变更记录(退/改/签)
+-- 18. order_change — 订单变更记录(退/改/签)
 --     主要服务于机票/火车票的退改签场景
 --     酒店取消/修改也走此表
 --     通过 origin_item_ids / new_item_ids 关联具体item
@@ -835,8 +879,9 @@ SET FOREIGN_KEY_CHECKS = 1;
  *     │
  *     └── c_member_corporate_apply (申报全量审计)
  *           ↑
- *     corporate_group ──┘  (大客户集团配置)
- *     corporate_policy     (自动申报政策)
+ *     corporate_group ──┐  (大客户集团主体, 可跨航司)
+ *     corporate_contract ┘  (集团×航司签约关系, 航司特定配置)
+ *     corporate_policy      (自动申报政策, 指向 contract)
  *
  * ── 订单体系 ──────────────────────────────────────
  *
