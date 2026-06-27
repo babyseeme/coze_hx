@@ -9,166 +9,173 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ============================================================
--- 一、审批流程系统 (8张表)
+-- 一、审批流程系统 (5张表) - 对接第三方OA
+-- 说明: 审批流程对接第三方OA(钉钉/飞书/企微)，移除自建流程设计器6张表
+--       (原approval_flow/node/edge/condition_group/condition_item/form)
+--       保留重构 approval_instance 和 approval_record，新增 oa_config/oa_user_mapping/oa_callback_log
 -- ============================================================
 
--- 1.1 审批流程定义表
-DROP TABLE IF EXISTS `approval_flow`;
-CREATE TABLE `approval_flow` (
+-- 1.1 审批实例表(对接第三方OA)
+DROP TABLE IF EXISTS `approval_instance`;
+DROP TABLE IF EXISTS `approval_instance`;
+-- 1.2 审批流程节点表
+DROP TABLE IF EXISTS `approval_instance`;
+CREATE TABLE `approval_instance` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `tenant_id` BIGINT NOT NULL DEFAULT 0 COMMENT '租户ID(0=全局)',
-  `flow_code` VARCHAR(64) NOT NULL COMMENT '流程编码 如WF202606140001',
-  `flow_name` VARCHAR(128) NOT NULL COMMENT '流程名称',
-  `flow_type` VARCHAR(32) NOT NULL COMMENT '流程类型: travel_approval=差旅审批, expense_approval=费用审批',
-  `version` INT NOT NULL DEFAULT 1 COMMENT '流程版本',
-  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态: 0=草稿, 1=已发布, 2=已停用',
-  `description` TEXT DEFAULT NULL COMMENT '流程描述',
-  `created_by` BIGINT DEFAULT NULL COMMENT '创建人',
-  `published_at` DATETIME DEFAULT NULL COMMENT '发布时间',
+  `tenant_id` BIGINT NOT NULL DEFAULT 0 COMMENT '租户ID',
+  `instance_no` VARCHAR(64) NOT NULL COMMENT '审批单号(平台生成)',
+  `title` VARCHAR(256) NOT NULL COMMENT '审批标题',
+  `biz_type` VARCHAR(32) NOT NULL COMMENT '业务类型: travel=差旅, expense=费用, reimbursement=报销',
+  `mode_type` VARCHAR(32) NOT NULL COMMENT '审批模式: pre_order=先审后单, approval_order=审批下单, post_order=先付后审',
+  -- 发起人信息
+  `initiator_type` VARCHAR(16) NOT NULL COMMENT '发起人端: mmc=商户端, c=客户端',
+  `initiator_id` BIGINT NOT NULL COMMENT '发起人ID(mmc_user.id / c_user.id)',
+  `initiator_name` VARCHAR(64) DEFAULT NULL COMMENT '发起人姓名',
+  `mmc_id` BIGINT DEFAULT NULL COMMENT '所属商户ID',
+  -- 业务关联
+  `order_id` BIGINT DEFAULT NULL COMMENT '关联订单ID(模式2/3时有值)',
+  `biz_data` JSON DEFAULT NULL COMMENT '业务数据快照(航线/乘机人/金额等)',
+  -- 审批状态
+  `status` VARCHAR(32) NOT NULL DEFAULT 'pending' COMMENT '状态: pending=审批中, approved=已通过, rejected=已拒绝, cancelled=已撤销, terminated=已终止, expired=已超时',
+  -- 第三方OA对接
+  `oa_platform` VARCHAR(32) DEFAULT NULL COMMENT 'OA平台: dingtalk=钉钉, feishu=飞书, wecom=企业微信',
+  `oa_instance_id` VARCHAR(128) DEFAULT NULL COMMENT 'OA平台审批实例ID',
+  `oa_process_code` VARCHAR(128) DEFAULT NULL COMMENT 'OA平台流程代码',
+  `oa_callback_id` VARCHAR(128) DEFAULT NULL COMMENT 'OA回调标识(用于幂等校验)',
+  `oa_sync_status` TINYINT NOT NULL DEFAULT 0 COMMENT 'OA同步状态: 0=未同步, 1=已同步, 2=同步失败',
+  `oa_sync_error` VARCHAR(512) DEFAULT NULL COMMENT 'OA同步失败原因',
+  `oa_sync_at` DATETIME DEFAULT NULL COMMENT 'OA同步时间',
+  -- 审批期限
+  `approval_deadline` DATETIME DEFAULT NULL COMMENT '审批截止时间(超时自动处理)',
+  `expired_action` VARCHAR(32) DEFAULT NULL COMMENT '超时处理: auto_reject=自动拒绝, auto_cancel=自动撤销, notify=仅通知',
+  -- 审批结果
+  `approved_at` DATETIME DEFAULT NULL COMMENT '审批通过时间',
+  `rejected_at` DATETIME DEFAULT NULL COMMENT '审批拒绝时间',
+  `reject_reason` VARCHAR(512) DEFAULT NULL COMMENT '拒绝原因',
+  -- 全链路追踪
+  `trace_id` VARCHAR(64) DEFAULT NULL COMMENT '全链路追踪ID',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted_at` DATETIME DEFAULT NULL COMMENT '软删除时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_flow_code_version` (`tenant_id`, `flow_code`, `version`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批流程定义表';
-
--- 1.2 审批流程节点表
-DROP TABLE IF EXISTS `approval_node`;
-CREATE TABLE `approval_node` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `flow_id` BIGINT NOT NULL COMMENT 'FK→approval_flow.id',
-  `node_code` VARCHAR(64) NOT NULL COMMENT '节点编码',
-  `node_name` VARCHAR(128) NOT NULL COMMENT '节点名称',
-  `node_type` VARCHAR(32) NOT NULL COMMENT '节点类型: start=开始, condition=条件分支, approval=人工审批, auto_pass=自动通过, auto_reject=自动拒绝, end=结束',
-  `approval_type` VARCHAR(32) DEFAULT NULL COMMENT '审批类型: manual=人工审核, auto_pass=自动通过, auto_reject=自动拒绝',
-  `approver_type` VARCHAR(32) DEFAULT NULL COMMENT '审批人类型: role=角色, superior=上级, self=发起人, specified=指定成员, multi_superior=连续多级上级, self_select=自选',
-  `approver_ids` JSON DEFAULT NULL COMMENT '审批人ID列表(JSON数组)',
-  `multi_approval_mode` VARCHAR(32) DEFAULT NULL COMMENT '多人审批方式: sequential=依次审批, countersign=会签, or_sign=或签',
-  `empty_handler` VARCHAR(32) DEFAULT NULL COMMENT '审批人为空处理: admin=转交审批管理员, specified=指定人员',
-  `empty_handler_id` BIGINT DEFAULT NULL COMMENT '指定人员ID',
-  `position_x` INT DEFAULT NULL COMMENT '画布X坐标',
-  `position_y` INT DEFAULT NULL COMMENT '画布Y坐标',
-  `sort_order` INT DEFAULT NULL COMMENT '排序',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_flow_id` (`flow_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批流程节点表';
-
--- 1.3 审批流程连线表
-DROP TABLE IF EXISTS `approval_edge`;
-CREATE TABLE `approval_edge` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `flow_id` BIGINT NOT NULL COMMENT 'FK→approval_flow.id',
-  `from_node_id` BIGINT NOT NULL COMMENT 'FK→approval_node.id 源节点',
-  `to_node_id` BIGINT NOT NULL COMMENT 'FK→approval_node.id 目标节点',
-  `edge_type` VARCHAR(32) NOT NULL COMMENT '连线类型: normal=正常, condition=条件分支',
-  `condition_group_id` BIGINT DEFAULT NULL COMMENT '条件组ID',
-  `label` VARCHAR(128) DEFAULT NULL COMMENT '连线标签',
-  `sort_order` INT DEFAULT NULL COMMENT '排序',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_flow_id` (`flow_id`),
-  KEY `idx_from_node` (`from_node_id`),
-  KEY `idx_to_node` (`to_node_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批流程连线表';
-
--- 1.4 审批条件组表
-DROP TABLE IF EXISTS `approval_condition_group`;
-CREATE TABLE `approval_condition_group` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `node_id` BIGINT NOT NULL COMMENT 'FK→approval_node.id 条件分支节点',
-  `group_name` VARCHAR(128) DEFAULT NULL COMMENT '条件组名称',
-  `is_default` TINYINT NOT NULL DEFAULT 0 COMMENT '是否默认分支(0=否, 1=是)',
-  `sort_order` INT DEFAULT NULL COMMENT '排序',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_node_id` (`node_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批条件组表';
-
--- 1.5 审批条件项表
-DROP TABLE IF EXISTS `approval_condition_item`;
-CREATE TABLE `approval_condition_item` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `group_id` BIGINT NOT NULL COMMENT 'FK→approval_condition_group.id',
-  `field_key` VARCHAR(64) NOT NULL COMMENT '条件字段: amount/days/department等',
-  `operator` VARCHAR(32) NOT NULL COMMENT '运算符: eq=等于, neq=不等于, gt=大于, gte=大于等于, lt=小于, lte=小于等于, in=包含, between=区间',
-  `field_value` JSON NOT NULL COMMENT '条件值(JSON)',
-  `logic` VARCHAR(8) NOT NULL DEFAULT 'AND' COMMENT '逻辑: AND/OR',
-  `sort_order` INT DEFAULT NULL COMMENT '排序',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_group_id` (`group_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批条件项表';
-
--- 1.6 审批表单设计表
-DROP TABLE IF EXISTS `approval_form`;
-CREATE TABLE `approval_form` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `flow_id` BIGINT NOT NULL COMMENT 'FK→approval_flow.id',
-  `form_name` VARCHAR(128) NOT NULL COMMENT '表单名称',
-  `form_config` JSON NOT NULL COMMENT '表单配置(字段列表/验证规则/布局)',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_flow_id` (`flow_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批表单设计表';
-
--- 1.7 审批实例表(运行时)
-DROP TABLE IF EXISTS `approval_instance`;
-CREATE TABLE `approval_instance` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `tenant_id` BIGINT NOT NULL COMMENT '租户ID',
-  `flow_id` BIGINT NOT NULL COMMENT 'FK→approval_flow.id',
-  `flow_version` INT NOT NULL COMMENT '流程版本',
-  `instance_no` VARCHAR(64) NOT NULL COMMENT '审批单号',
-  `title` VARCHAR(256) NOT NULL COMMENT '审批标题',
-  `form_data` JSON DEFAULT NULL COMMENT '表单数据',
-  `biz_type` VARCHAR(32) DEFAULT NULL COMMENT '业务类型: flight/hotel/train',
-  `biz_id` BIGINT DEFAULT NULL COMMENT '业务ID',
-  `mode_type` VARCHAR(32) DEFAULT NULL COMMENT '审批模式: pre_order=先审后单, approval_order=审批下单, post_order=先付后审',
-  `initiator_id` BIGINT NOT NULL COMMENT '发起人ID',
-  `initiator_type` VARCHAR(16) NOT NULL COMMENT '发起人类型: mmc_user=MMC用户, c_user=C端用户',
-  `current_node_id` BIGINT DEFAULT NULL COMMENT '当前节点ID',
-  `status` VARCHAR(32) NOT NULL COMMENT '状态: pending=审批中, approved=已通过, rejected=已拒绝, cancelled=已撤销, terminated=已终止',
-  `submit_at` DATETIME DEFAULT NULL COMMENT '提交时间',
-  `finish_at` DATETIME DEFAULT NULL COMMENT '完成时间',
-  `approval_deadline` DATETIME DEFAULT NULL COMMENT '审批期限(模式3)',
-  `trace_id` VARCHAR(64) DEFAULT NULL COMMENT '全链路追踪ID',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
   UNIQUE KEY `uk_instance_no` (`instance_no`),
-  KEY `idx_tenant_id` (`tenant_id`),
-  KEY `idx_flow_id` (`flow_id`),
-  KEY `idx_initiator` (`initiator_id`, `initiator_type`),
-  KEY `idx_status` (`status`),
-  KEY `idx_biz` (`biz_type`, `biz_id`),
+  UNIQUE KEY `uk_oa_instance` (`oa_platform`, `oa_instance_id`),
+  KEY `idx_tenant_status` (`tenant_id`, `status`),
+  KEY `idx_initiator` (`initiator_type`, `initiator_id`),
+  KEY `idx_mmc` (`mmc_id`),
+  KEY `idx_order` (`order_id`),
   KEY `idx_trace_id` (`trace_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批实例表(运行时)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批实例表(对接第三方OA)';
 
--- 1.8 审批记录表(运行时)
+-- 1.2 审批记录表(对接第三方OA)
 DROP TABLE IF EXISTS `approval_record`;
 CREATE TABLE `approval_record` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
   `instance_id` BIGINT NOT NULL COMMENT 'FK→approval_instance.id',
-  `node_id` BIGINT NOT NULL COMMENT 'FK→approval_node.id',
-  `node_name` VARCHAR(128) DEFAULT NULL COMMENT '节点名称(冗余)',
-  `handler_id` BIGINT NOT NULL COMMENT '处理人ID',
-  `handler_name` VARCHAR(64) DEFAULT NULL COMMENT '处理人姓名(冗余)',
-  `handler_type` VARCHAR(16) NOT NULL COMMENT '处理人类型: mmc_user=MMC用户, system=系统',
-  `action` VARCHAR(32) NOT NULL COMMENT '操作: approve=同意, reject=拒绝, transfer=转交, cancel=撤销, terminate=终止',
-  `opinion` TEXT DEFAULT NULL COMMENT '审批意见',
-  `transfer_to_id` BIGINT DEFAULT NULL COMMENT '转交目标ID',
-  `transfer_to_name` VARCHAR(64) DEFAULT NULL COMMENT '转交目标姓名',
+  -- 节点信息(从OA回调获取)
+  `node_name` VARCHAR(128) DEFAULT NULL COMMENT '审批节点名称(如:直属上级审批)',
+  `action` VARCHAR(32) NOT NULL COMMENT '操作: agree=同意, reject=拒绝, transfer=转交, add_sign=加签, cancel=撤销, terminate=终止',
+  -- 操作人信息
+  `operator_id` BIGINT DEFAULT NULL COMMENT '操作人ID(平台用户ID,可能为空)',
+  `operator_name` VARCHAR(64) DEFAULT NULL COMMENT '操作人姓名',
+  `operator_oa_id` VARCHAR(128) DEFAULT NULL COMMENT 'OA平台用户ID',
+  `operator_oa_name` VARCHAR(64) DEFAULT NULL COMMENT 'OA平台用户姓名',
+  -- 审批意见
+  `opinion` TEXT DEFAULT NULL COMMENT '审批意见/备注',
+  `attachment` JSON DEFAULT NULL COMMENT '附件列表(JSON)',
+  -- OA回调原始数据
+  `oa_callback_data` JSON DEFAULT NULL COMMENT 'OA回调原始数据(用于审计和问题排查)',
+  -- 转交/加签信息
+  `transfer_to_id` BIGINT DEFAULT NULL COMMENT '转交给(用户ID)',
+  `transfer_to_name` VARCHAR(64) DEFAULT NULL COMMENT '转交给(姓名)',
+  `add_sign_user_ids` JSON DEFAULT NULL COMMENT '加签人ID列表',
+  -- 全链路追踪
   `trace_id` VARCHAR(64) DEFAULT NULL COMMENT '全链路追踪ID',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
   PRIMARY KEY (`id`),
   KEY `idx_instance_id` (`instance_id`),
-  KEY `idx_handler` (`handler_id`, `handler_type`),
+  KEY `idx_operator` (`operator_id`),
   KEY `idx_trace_id` (`trace_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批记录表(运行时)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批记录表(对接第三方OA)';
+
+-- 1.3 OA平台配置表
+DROP TABLE IF EXISTS `oa_config`;
+CREATE TABLE `oa_config` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `tenant_id` BIGINT NOT NULL DEFAULT 0 COMMENT '租户ID(TMC级别配置)',
+  `platform` VARCHAR(32) NOT NULL COMMENT 'OA平台: dingtalk=钉钉, feishu=飞书, wecom=企业微信',
+  `is_enabled` TINYINT NOT NULL DEFAULT 0 COMMENT '是否启用: 0=否, 1=是',
+  -- 应用凭证
+  `app_key` VARCHAR(256) DEFAULT NULL COMMENT '应用Key/AppID/CorpID',
+  `app_secret` VARCHAR(256) DEFAULT NULL COMMENT '应用Secret(AES加密存储)',
+  `agent_id` VARCHAR(128) DEFAULT NULL COMMENT '应用AgentID(钉钉)',
+  `corp_id` VARCHAR(128) DEFAULT NULL COMMENT '企业ID(企微)',
+  -- 回调配置
+  `callback_url` VARCHAR(512) DEFAULT NULL COMMENT '回调通知URL',
+  `callback_token` VARCHAR(256) DEFAULT NULL COMMENT '回调Token(AES加密存储)',
+  `callback_aes_key` VARCHAR(256) DEFAULT NULL COMMENT '回调AES Key(AES加密存储)',
+  -- 审批流程映射
+  `process_mapping` JSON DEFAULT NULL COMMENT '审批流程映射: {"travel_approval":"PROC-XXX","expense_approval":"PROC-YYY"}',
+  -- 用户映射配置
+  `user_mapping_field` VARCHAR(32) NOT NULL DEFAULT 'mobile' COMMENT '用户映射字段: mobile=手机号, email=邮箱, employee_id=工号',
+  -- 同步配置
+  `sync_user_enabled` TINYINT NOT NULL DEFAULT 0 COMMENT '是否同步OA用户: 0=否, 1=是',
+  `sync_dept_enabled` TINYINT NOT NULL DEFAULT 0 COMMENT '是否同步OA部门: 0=否, 1=是',
+  -- 扩展配置
+  `extra_config` JSON DEFAULT NULL COMMENT '扩展配置(各平台特有参数)',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` DATETIME DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_tenant_platform` (`tenant_id`, `platform`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OA平台配置表';
+
+-- 1.4 OA用户映射表
+DROP TABLE IF EXISTS `oa_user_mapping`;
+CREATE TABLE `oa_user_mapping` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `tenant_id` BIGINT NOT NULL COMMENT '租户ID',
+  `platform` VARCHAR(32) NOT NULL COMMENT 'OA平台: dingtalk/feishu/wecom',
+  `platform_user_id` VARCHAR(128) NOT NULL COMMENT 'OA平台用户ID',
+  `platform_user_name` VARCHAR(64) DEFAULT NULL COMMENT 'OA平台用户姓名',
+  `platform_dept_id` VARCHAR(128) DEFAULT NULL COMMENT 'OA平台部门ID',
+  `local_user_type` VARCHAR(16) NOT NULL COMMENT '本地用户类型: mmc=商户端, pmc=平台端, tmc=集团端, c=客户端',
+  `local_user_id` BIGINT NOT NULL COMMENT '本地用户ID',
+  `mapping_field` VARCHAR(32) NOT NULL COMMENT '映射字段: mobile/email/employee_id',
+  `mapping_value` VARCHAR(128) NOT NULL COMMENT '映射值',
+  `sync_at` DATETIME DEFAULT NULL COMMENT '最近同步时间',
+  `is_active` TINYINT NOT NULL DEFAULT 1 COMMENT '是否有效: 0=失效, 1=有效',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_platform_user` (`platform`, `platform_user_id`),
+  UNIQUE KEY `uk_local_user` (`local_user_type`, `local_user_id`, `platform`),
+  KEY `idx_tenant` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OA用户映射表';
+
+-- 1.5 OA回调日志表
+DROP TABLE IF EXISTS `oa_callback_log`;
+CREATE TABLE `oa_callback_log` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `platform` VARCHAR(32) NOT NULL COMMENT 'OA平台',
+  `event_type` VARCHAR(64) NOT NULL COMMENT '事件类型: approval_status_change/user_add/dept_change等',
+  `callback_id` VARCHAR(128) DEFAULT NULL COMMENT '回调ID(用于幂等)',
+  `instance_id` BIGINT DEFAULT NULL COMMENT '关联approval_instance.id',
+  `request_headers` JSON DEFAULT NULL COMMENT '请求头(AES脱敏)',
+  `request_body` JSON DEFAULT NULL COMMENT '请求体原文(加密存储,保留7天)',
+  `process_result` VARCHAR(32) DEFAULT NULL COMMENT '处理结果: success=成功, duplicate=重复, failed=失败',
+  `process_error` VARCHAR(512) DEFAULT NULL COMMENT '处理失败原因',
+  `process_at` DATETIME DEFAULT NULL COMMENT '处理时间',
+  `ip_address` VARCHAR(64) DEFAULT NULL COMMENT '来源IP',
+  `trace_id` VARCHAR(64) DEFAULT NULL COMMENT '全链路追踪ID',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '接收时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_callback_id` (`platform`, `callback_id`),
+  KEY `idx_instance` (`instance_id`),
+  KEY `idx_event_type` (`event_type`),
+  KEY `idx_created_at` (`created_at`),
+  KEY `idx_trace_id` (`trace_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OA回调日志表';
 
 -- ============================================================
 -- 二、采购渠道与规则 (5张表)
