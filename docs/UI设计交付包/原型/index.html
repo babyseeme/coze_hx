@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>华夏航服B2B2C - 交互原型</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: #f0f2f5; color: #1f2937; }
+
+/* 端选择页 */
+.portal { display: flex; min-height: 100vh; align-items: center; justify-content: center; flex-direction: column; background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%); }
+.portal h1 { color: #fff; font-size: 36px; margin-bottom: 12px; letter-spacing: 4px; }
+.portal .subtitle { color: #94a3b8; font-size: 16px; margin-bottom: 48px; }
+.portal-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; max-width: 1000px; padding: 0 24px; }
+.portal-card { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 32px 24px; text-align: center; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(8px); }
+.portal-card:hover { background: rgba(255,255,255,0.15); transform: translateY(-4px); border-color: rgba(255,255,255,0.3); }
+.portal-card .icon { font-size: 48px; margin-bottom: 16px; }
+.portal-card h3 { color: #fff; font-size: 18px; margin-bottom: 8px; }
+.portal-card p { color: #94a3b8; font-size: 13px; line-height: 1.6; }
+.portal-card .tag { display: inline-block; margin-top: 12px; padding: 2px 10px; border-radius: 10px; font-size: 11px; }
+.tag-pmc { background: #3b82f6; color: #fff; }
+.tag-tmc { background: #10b981; color: #fff; }
+.tag-mmc { background: #f59e0b; color: #fff; }
+.tag-c { background: #8b5cf6; color: #fff; }
+
+/* 管理端通用布局 */
+.admin-layout { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: #1e293b; color: #e2e8f0; display: flex; flex-direction: column; position: fixed; height: 100vh; overflow-y: auto; z-index: 10; }
+.sidebar .logo { padding: 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; }
+.sidebar .logo span { font-size: 15px; font-weight: 600; }
+.sidebar .logo .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+.sidebar nav { flex: 1; padding: 8px 0; }
+.sidebar .nav-group { padding: 0 12px; margin-bottom: 4px; }
+.sidebar .nav-group-title { font-size: 11px; color: #64748b; padding: 8px 12px 4px; text-transform: uppercase; letter-spacing: 1px; }
+.sidebar .nav-item { display: flex; align-items: center; padding: 9px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; gap: 8px; color: #94a3b8; }
+.sidebar .nav-item:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+.sidebar .nav-item.active { background: rgba(59,130,246,0.2); color: #60a5fa; }
+.sidebar .nav-item .arrow { margin-left: auto; font-size: 10px; }
+.sidebar .nav-item .sub { padding-left: 20px; font-size: 12px; }
+
+.main { flex: 1; margin-left: 220px; }
+.topbar { height: 56px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; position: sticky; top: 0; z-index: 5; }
+.topbar .breadcrumb { font-size: 14px; color: #6b7280; }
+.topbar .breadcrumb b { color: #1f2937; }
+.topbar .user-area { display: flex; align-items: center; gap: 16px; font-size: 13px; color: #6b7280; }
+.topbar .avatar { width: 32px; height: 32px; border-radius: 50%; background: #3b82f6; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
+
+.content { padding: 24px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* 统计卡片 */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb; }
+.stat-card .label { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .change { font-size: 12px; margin-top: 4px; }
+.change-up { color: #10b981; }
+.change-down { color: #ef4444; }
+
+/* 表格 */
+.table-card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
+.table-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; }
+.table-header h3 { font-size: 15px; font-weight: 600; }
+.table-actions { display: flex; gap: 8px; }
+.btn { padding: 7px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
+.btn-primary { background: #3b82f6; color: #fff; }
+.btn-primary:hover { background: #2563eb; }
+.btn-outline { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+.btn-outline:hover { background: #f9fafb; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-success { background: #10b981; color: #fff; }
+.btn-danger { background: #ef4444; color: #fff; }
+.btn-warning { background: #f59e0b; color: #fff; }
+
+table { width: 100%; border-collapse: collapse; }
+table th { padding: 10px 16px; text-align: left; font-size: 12px; color: #6b7280; font-weight: 500; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+table td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid #f3f4f6; }
+table tr:hover { background: #f9fafb; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.badge-green { background: #d1fae5; color: #065f46; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
+.badge-blue { background: #dbeafe; color: #1e40af; }
+.badge-gray { background: #f3f4f6; color: #4b5563; }
+
+/* 搜索栏 */
+.search-bar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.search-bar input, .search-bar select { padding: 7px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; outline: none; }
+.search-bar input:focus, .search-bar select:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
+
+/* C端样式 */
+.client-layout { max-width: 390px; margin: 0 auto; min-height: 100vh; background: #f8fafc; position: relative; }
+.client-header { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff; padding: 16px; }
+.client-header h2 { font-size: 18px; margin-bottom: 4px; }
+.client-header p { font-size: 12px; opacity: 0.8; }
+.client-search { margin: -20px 16px 16px; background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.search-tabs { display: flex; gap: 16px; margin-bottom: 12px; border-bottom: 1px solid #f3f4f6; padding-bottom: 8px; }
+.search-tab { font-size: 14px; color: #6b7280; cursor: pointer; padding-bottom: 4px; }
+.search-tab.active { color: #3b82f6; border-bottom: 2px solid #3b82f6; font-weight: 600; }
+.search-inputs { display: flex; flex-direction: column; gap: 8px; }
+.search-row { display: flex; gap: 8px; align-items: center; }
+.search-row input { flex: 1; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; }
+.search-row .swap { width: 36px; height: 36px; border-radius: 50%; background: #eff6ff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.search-btn { width: 100%; padding: 12px; background: #3b82f6; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+
+.client-section { padding: 0 16px; margin-bottom: 16px; }
+.client-section h4 { font-size: 15px; font-weight: 600; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.client-section h4 span { font-size: 12px; color: #3b82f6; font-weight: 400; cursor: pointer; }
+
+.quick-nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.quick-nav-item { text-align: center; cursor: pointer; }
+.quick-nav-item .icon-wrap { width: 48px; height: 48px; border-radius: 12px; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.quick-nav-item span { font-size: 12px; color: #374151; }
+
+.banner { width: 100%; height: 120px; border-radius: 10px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; color: #fff; margin-bottom: 12px; }
+.banner h3 { font-size: 20px; }
+.banner p { font-size: 12px; opacity: 0.8; }
+
+.hot-flight { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.flight-card { min-width: 140px; background: #fff; border-radius: 10px; padding: 12px; border: 1px solid #e5e7eb; cursor: pointer; }
+.flight-card .route { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.flight-card .price { font-size: 16px; color: #ef4444; font-weight: 700; }
+.flight-card .price small { font-size: 11px; color: #9ca3af; font-weight: 400; }
+
+.client-bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 390px; max-width: 100%; background: #fff; border-top: 1px solid #e5e7eb; display: flex; height: 56px; z-index: 20; }
+.client-bottom-nav .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #9ca3af; cursor: pointer; gap: 2px; }
+.client-bottom-nav .tab.active { color: #3b82f6; }
+.client-bottom-nav .tab .icon { font-size: 20px; }
+
+/* 流程设计器 */
+.flow-designer { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; min-height: 500px; position: relative; }
+.flow-toolbar { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display: flex; gap: 8px; }
+.flow-canvas { padding: 40px; display: flex; gap: 40px; align-items: center; overflow-x: auto; min-height: 400px; }
+.flow-node { min-width: 160px; background: #fff; border: 2px solid #3b82f6; border-radius: 12px; padding: 16px; text-align: center; position: relative; }
+.flow-node.start { border-color: #10b981; background: #f0fdf4; }
+.flow-node.condition { border-color: #f59e0b; background: #fffbeb; }
+.flow-node.approval { border-color: #3b82f6; background: #eff6ff; }
+.flow-node.end { border-color: #6b7280; background: #f9fafb; }
+.flow-node .node-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.flow-node .node-desc { font-size: 11px; color: #6b7280; }
+.flow-arrow { font-size: 24px; color: #9ca3af; }
+.flow-arrow-branch { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.flow-branch-label { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+
+/* 隐藏/显示控制 */
+.hidden { display: none !important; }
+
+/* 返回按钮 */
+.back-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 6px; background: #fff; border: 1px solid #d1d5db; cursor: pointer; font-size: 13px; color: #374151; margin-bottom: 16px; }
+.back-btn:hover { background: #f9fafb; }
+
+/* 弹窗 */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: #fff; border-radius: 12px; width: 600px; max-height: 80vh; overflow-y: auto; }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { font-size: 16px; }
+.modal-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: #f3f4f6; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.modal-body { padding: 20px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #374151; }
+.form-group label .required { color: #ef4444; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ==================== 端选择入口页 ==================== -->
+<div id="portal-page" class="portal">
+  <h1>华夏航服 B2B2C</h1>
+  <p class="subtitle">航空旅游综合服务平台 - 交互原型 v1.0</p>
+  <div class="portal-cards">
+    <div class="portal-card" onclick="showAdmin('pmc')">
+      <div class="icon">&#x1F3E2;</div>
+      <h3>PMC 平台管理端</h3>
+      <p>Platform Management Center<br>全局管理、采购渠道、开放平台</p>
+      <span class="tag tag-pmc">pmc_*</span>
+    </div>
+    <div class="portal-card" onclick="showAdmin('tmc')">
+      <div class="icon">&#x1F3E1;</div>
+      <h3>TMC 集团管理端</h3>
+      <p>Team Management Center<br>商户管理、采购结算、大客户</p>
+      <span class="tag tag-tmc">tmc_*</span>
+    </div>
+    <div class="portal-card" onclick="showAdmin('mmc')">
+      <div class="icon">&#x1F3EA;</div>
+      <h3>MMC 商户端</h3>
+      <p>Merchant Management Center<br>订单出票、审批管理、积分商城</p>
+      <span class="tag tag-mmc">mmc_*</span>
+    </div>
+    <div class="portal-card" onclick="showClient()">
+      <div class="icon">&#x1F4F1;</div>
+      <h3>C端 客户端</h3>
+      <p>小程序 / Web<br>机票预订、会员服务、积分商城</p>
+      <span class="tag tag-c">c_*</span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PMC 平台管理端 ==================== -->
+<div id="pmc-layout" class="admin-layout hidden">
+  <div class="sidebar">
+    <div class="logo">
+      <span>&#x2708;&#xFE0F;</span>
+      <span>华夏航服</span>
+      <span class="badge tag-pmc">PMC</span>
+    </div>
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">系统管理</div>
+        <div class="nav-item" onclick="showPage('pmc','pmc-dashboard')">&#x1F4CA; 工作台</div>
+        <div class="nav-item" onclick="showPage('pmc','pmc-user')">&#x1F464; 用户管理</div>
+        <div class="nav-item" onclick="showPage('pmc','pmc-role')">&#x1F511; 角色管理</div>
+        <div class="nav-item">&#x1F4CB; 菜单管理</div>
+        <div class="nav-item">&#x1F3E2; 部门管理</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">业务管理</div>
+        <div class="nav-item" onclick="showPage('pmc','pmc-tmc')">&#x1F3E1; TMC集团管理</div>
+        <div class="nav-item" onclick="showPage('pmc','pmc-channel')">&#x1F517; 采购渠道管理</div>
+        <div class="nav-item">&#x1F69C; 供应商管理</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开放平台</div>
+        <div class="nav-item" onclick="showPage('pmc','pmc-openapi')">&#x1F310; API管理</div>
+        <div class="nav-item">&#x1F4B0; 计费管理</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">财务</div>
+        <div class="nav-item">&#x1F4B5; 平台收入</div>
+        <div class="nav-item">&#x1F4B3; TMC结算</div>
+        <div class="nav-item">&#x1F4E6; 分润管理</div>
+      </div>
+    </nav>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <div class="breadcrumb">首页 / <b id="pmc-page-title">工作台</b></div>
+      <div class="user-area">
+        <span>&#x1F514;</span>
+        <span>Admin</span>
+        <div class="avatar">A</div>
+      </div>
+    </div>
+    <div class="content">
+      <button class="back-btn" onclick="backToPortal()">&#x2190; 返回入口</button>
+
+      <!-- PMC 工作台 -->
+      <div id="pmc-dashboard" class="page active">
+        <div class="stats">
+          <div class="stat-card"><div class="label">TMC集团数</div><div class="value">28</div><div class="change change-up">&#x2191; 12%</div></div>
+          <div class="stat-card"><div class="label">MMC商户数</div><div class="value">156</div><div class="change change-up">&#x2191; 8%</div></div>
+          <div class="stat-card"><div class="label">今日交易额</div><div class="value" style="color:#3b82f6">¥856K</div><div class="change change-up">&#x2191; 23%</div></div>
+          <div class="stat-card"><div class="label">采购成功率</div><div class="value" style="color:#10b981">97.2%</div><div class="change change-down">&#x2193; 0.3%</div></div>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><h3>最近TMC动态</h3></div>
+          <table>
+            <thead><tr><th>TMC名称</th><th>商户数</th><th>本月交易额</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>温州航空集团</td><td>12</td><td>¥1,256,800</td><td><span class="badge badge-green">正常</span></td></tr>
+              <tr><td>杭州商旅集团</td><td>8</td><td>¥856,300</td><td><span class="badge badge-green">正常</span></td></tr>
+              <tr><td>宁波出行集团</td><td>5</td><td>¥423,100</td><td><span class="badge badge-yellow">额度预警</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PMC TMC管理 -->
+      <div id="pmc-tmc" class="page">
+        <div class="search-bar">
+          <input placeholder="搜索TMC名称" style="width:200px">
+          <select><option>全部状态</option><option>正常</option><option>禁用</option></select>
+          <button class="btn btn-primary">+ 新增TMC</button>
+        </div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>集团名称</th><th>联系人</th><th>商户数</th><th>允许外采</th><th>结算方式</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>温州航空集团</td><td>张经理</td><td>12</td><td><span class="badge badge-green">是</span></td><td>月结</td><td><span class="badge badge-green">正常</span></td><td><button class="btn btn-sm btn-outline">配置</button> <button class="btn btn-sm btn-outline">详情</button></td></tr>
+              <tr><td>杭州商旅集团</td><td>李总</td><td>8</td><td><span class="badge badge-gray">否</span></td><td>信用额度</td><td><span class="badge badge-green">正常</span></td><td><button class="btn btn-sm btn-outline">配置</button> <button class="btn btn-sm btn-outline">详情</button></td></tr>
+              <tr><td>宁波出行集团</td><td>王主任</td><td>5</td><td><span class="badge badge-green">是</span></td><td>预付</td><td><span class="badge badge-yellow">预警</span></td><td><button class="btn btn-sm btn-outline">配置</button> <button class="btn btn-sm btn-outline">详情</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PMC 采购渠道 -->
+      <div id="pmc-channel" class="page">
+        <div class="search-bar">
+          <input placeholder="搜索渠道名称" style="width:200px">
+          <select><option>全部类型</option><option>航司B2B</option><option>中航信</option><option>第三方接口</option><option>人工外采</option></select>
+          <button class="btn btn-primary">+ 新增渠道</button>
+        </div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>渠道编码</th><th>渠道名称</th><th>类型</th><th>供应商类型</th><th>健康状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>CH-CA-001</td><td>国航B2B直连</td><td><span class="badge badge-blue">航司B2B</span></td><td>机票</td><td><span class="badge badge-green">正常 (98.5%)</span></td><td><button class="btn btn-sm btn-outline">测试</button> <button class="btn btn-sm btn-outline">配置</button></td></tr>
+              <tr><td>CH-TRP-001</td><td>中航信1E系统</td><td><span class="badge badge-blue">中航信</span></td><td>机票</td><td><span class="badge badge-green">正常 (99.1%)</span></td><td><button class="btn btn-sm btn-outline">测试</button> <button class="btn btn-sm btn-outline">配置</button></td></tr>
+              <tr><td>CH-MU-001</td><td>东航B2B直连</td><td><span class="badge badge-blue">航司B2B</span></td><td>机票</td><td><span class="badge badge-yellow">波动 (92.3%)</span></td><td><button class="btn btn-sm btn-outline">测试</button> <button class="btn btn-sm btn-outline">配置</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PMC 开放API -->
+      <div id="pmc-openapi" class="page">
+        <div class="stats">
+          <div class="stat-card"><div class="label">已注册API</div><div class="value">24</div></div>
+          <div class="stat-card"><div class="label">已授权TMC</div><div class="value">5</div></div>
+          <div class="stat-card"><div class="label">今日调用量</div><div class="value">12,458</div></div>
+          <div class="stat-card"><div class="label">平均响应时间</div><div class="value">236ms</div></div>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><h3>API接口列表</h3><button class="btn btn-primary">+ 注册接口</button></div>
+          <table>
+            <thead><tr><th>接口编码</th><th>接口名称</th><th>路径</th><th>方法</th><th>版本</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>flight-search</td><td>航班搜索</td><td>/api/v1/flight/search</td><td>POST</td><td>v1</td><td><span class="badge badge-green">已发布</span></td></tr>
+              <tr><td>order-create</td><td>创建订单</td><td>/api/v1/order/create</td><td>POST</td><td>v1</td><td><span class="badge badge-green">已发布</span></td></tr>
+              <tr><td>order-detail</td><td>订单详情</td><td>/api/v1/order/detail</td><td>GET</td><td>v1</td><td><span class="badge badge-green">已发布</span></td></tr>
+              <tr><td>hotel-search</td><td>酒店搜索</td><td>/api/v1/hotel/search</td><td>POST</td><td>v1</td><td><span class="badge badge-yellow">测试中</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PMC 用户管理 -->
+      <div id="pmc-user" class="page">
+        <div class="search-bar">
+          <input placeholder="用户名/手机号" style="width:200px">
+          <select><option>全部状态</option><option>正常</option><option>禁用</option></select>
+          <button class="btn btn-primary" onclick="showModal('user-modal')">+ 新增用户</button>
+        </div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>用户名</th><th>姓名</th><th>手机号</th><th>角色</th><th>部门</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>admin</td><td>系统管理员</td><td>138****8000</td><td>超级管理员</td><td>总经办</td><td><span class="badge badge-green">正常</span></td><td><button class="btn btn-sm btn-outline">编辑</button></td></tr>
+              <tr><td>ops_zhang</td><td>张运维</td><td>139****6001</td><td>运营管理</td><td>运营部</td><td><span class="badge badge-green">正常</span></td><td><button class="btn btn-sm btn-outline">编辑</button> <button class="btn btn-sm btn-danger">禁用</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TMC 集团管理端 ==================== -->
+<div id="tmc-layout" class="admin-layout hidden">
+  <div class="sidebar">
+    <div class="logo"><span>&#x2708;&#xFE0F;</span><span>华夏航服</span><span class="badge tag-tmc">TMC</span></div>
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">系统管理</div>
+        <div class="nav-item" onclick="showPage('tmc','tmc-dashboard')">&#x1F4CA; 工作台</div>
+        <div class="nav-item">&#x1F464; 用户管理</div>
+        <div class="nav-item">&#x1F511; 角色管理</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">商户管理</div>
+        <div class="nav-item" onclick="showPage('tmc','tmc-mmc')">&#x1F3EA; MMC商户管理</div>
+        <div class="nav-item" onclick="showPage('tmc','tmc-settlement')">&#x1F4B3; 结算管理</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">采购管理</div>
+        <div class="nav-item" onclick="showPage('tmc','tmc-procurement')">&#x1F517; 采购渠道</div>
+        <div class="nav-item">&#x2699;&#xFE0F; 自动采购规则</div>
+        <div class="nav-item">&#x1F4E5; 外采核销</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">业务管理</div>
+        <div class="nav-item" onclick="showPage('tmc','tmc-pricing')">&#x1F4B0; 销售策略</div>
+        <div class="nav-item">&#x1F4CB; 差旅政策</div>
+        <div class="nav-item" onclick="showPage('tmc','tmc-corporate')">&#x1F3DB;&#xFE0F; 航司大客户</div>
+        <div class="nav-item">&#x1F4B8; 分润管理</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开放平台</div>
+        <div class="nav-item">&#x1F310; 应用管理</div>
+      </div>
+    </nav>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <div class="breadcrumb">首页 / <b id="tmc-page-title">工作台</b></div>
+      <div class="user-area"><span>&#x1F514;</span><span>温州航空集团-张经理</span><div class="avatar">T</div></div>
+    </div>
+    <div class="content">
+      <button class="back-btn" onclick="backToPortal()">&#x2190; 返回入口</button>
+
+      <!-- TMC 工作台 -->
+      <div id="tmc-dashboard" class="page active">
+        <div class="stats">
+          <div class="stat-card"><div class="label">MMC商户数</div><div class="value">12</div><div class="change change-up">&#x2191; 2</div></div>
+          <div class="stat-card"><div class="label">今日订单</div><div class="value">347</div><div class="change change-up">&#x2191; 15%</div></div>
+          <div class="stat-card"><div class="label">今日交易额</div><div class="value" style="color:#3b82f6">¥423K</div><div class="change change-up">&#x2191; 18%</div></div>
+          <div class="stat-card"><div class="label">出票成功率</div><div class="value" style="color:#10b981">96.8%</div><div class="change change-down">&#x2193; 0.5%</div></div>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><h3>MMC商户概览</h3></div>
+          <table>
+            <thead><tr><th>商户名称</th><th>类型</th><th>C端用户</th><th>今日订单</th><th>余额/额度</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>温州商旅(内部)</td><td><span class="badge badge-blue">子公司</span></td><td>2,345</td><td>86</td><td>额度 ¥500,000 (已用68%)</td><td><span class="badge badge-green">正常</span></td></tr>
+              <tr><td>杭州出行(分销)</td><td><span class="badge badge-yellow">分销商</span></td><td>5,678</td><td>156</td><td>预付 ¥123,400</td><td><span class="badge badge-green">正常</span></td></tr>
+              <tr><td>宁波差旅(内部)</td><td><span class="badge badge-blue">子公司</span></td><td>890</td><td>23</td><td>额度 ¥200,000 (已用92%)</td><td><span class="badge badge-red">额度预警</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TMC MMC管理 -->
+      <div id="tmc-mmc" class="page">
+        <div class="search-bar">
+          <input placeholder="搜索商户名称" style="width:200px">
+          <select><option>全部类型</option><option>子公司</option><option>分销商</option></select>
+          <button class="btn btn-primary">+ 新增商户</button>
+        </div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>商户名称</th><th>类型</th><th>结算方式</th><th>信用额度</th><th>已用额度</th><th>采购渠道</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>温州商旅(内部)</td><td><span class="badge badge-blue">子公司</span></td><td>信用额度</td><td>¥500,000</td><td>¥340,000 (68%)</td><td>3个渠道</td><td><span class="badge badge-green">正常</span></td><td><button class="btn btn-sm btn-outline">配置</button> <button class="btn btn-sm btn-outline">详情</button></td></tr>
+              <tr><td>杭州出行(分销)</td><td><span class="badge badge-yellow">分销商</span></td><td>预付</td><td>-</td><td>-</td><td>2个渠道</td><td><span class="badge badge-green">正常</span></td><td><button class="btn btn-sm btn-outline">配置</button> <button class="btn btn-sm btn-outline">详情</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TMC 结算管理 -->
+      <div id="tmc-settlement" class="page">
+        <div class="stats">
+          <div class="stat-card"><div class="label">应收总额</div><div class="value" style="color:#3b82f6">¥2.86M</div></div>
+          <div class="stat-card"><div class="label">已收总额</div><div class="value" style="color:#10b981">¥2.41M</div></div>
+          <div class="stat-card"><div class="label">待结算</div><div class="value" style="color:#f59e0b">¥456K</div></div>
+          <div class="stat-card"><div class="label">逾期金额</div><div class="value" style="color:#ef4444">¥23K</div></div>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><h3>MMC结算概览</h3></div>
+          <table>
+            <thead><tr><th>商户</th><th>结算方式</th><th>信用额度</th><th>已用</th><th>可用</th><th>预警</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>温州商旅(内部)</td><td>信用额度</td><td>¥500,000</td><td>¥340,000</td><td>¥160,000</td><td><span class="badge badge-green">正常</span></td><td><button class="btn btn-sm btn-outline">调整额度</button> <button class="btn btn-sm btn-outline">账单</button></td></tr>
+              <tr><td>宁波差旅(内部)</td><td>信用额度</td><td>¥200,000</td><td>¥184,000</td><td>¥16,000</td><td><span class="badge badge-red">超额预警</span></td><td><button class="btn btn-sm btn-warning">调整额度</button> <button class="btn btn-sm btn-outline">账单</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TMC 采购渠道 -->
+      <div id="tmc-procurement" class="page">
+        <div class="table-card">
+          <div class="table-header"><h3>采购渠道配置</h3><button class="btn btn-primary">+ 新增外采渠道</button></div>
+          <table>
+            <thead><tr><th>渠道名称</th><th>类型</th><th>账号状态</th><th>自动采购</th><th>验价阈值</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>国航B2B直连</td><td><span class="badge badge-blue">内采</span></td><td><span class="badge badge-green">已配置</span></td><td>已开启</td><td>5%</td><td><button class="btn btn-sm btn-outline">规则</button> <button class="btn btn-sm btn-outline">账号</button></td></tr>
+              <tr><td>中航信1E系统</td><td><span class="badge badge-blue">内采</span></td><td><span class="badge badge-green">已配置</span></td><td>已开启</td><td>3%</td><td><button class="btn btn-sm btn-outline">规则</button> <button class="btn btn-sm btn-outline">账号</button></td></tr>
+              <tr><td>东航B2B(自签)</td><td><span class="badge badge-yellow">外采</span></td><td><span class="badge badge-green">已配置</span></td><td>已开启</td><td>8%</td><td><button class="btn btn-sm btn-outline">规则</button> <button class="btn btn-sm btn-outline">核销</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TMC 销售策略 -->
+      <div id="tmc-pricing" class="page">
+        <div class="search-bar">
+          <select><option>全部类型</option><option>加价规则</option><option>协议价</option><option>服务费</option></select>
+          <button class="btn btn-primary">+ 新增加价规则</button>
+          <button class="btn btn-outline">+ 新增服务费</button>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><h3>加价规则列表</h3></div>
+          <table>
+            <thead><tr><th>规则名称</th><th>适用范围</th><th>加价方式</th><th>固定加价</th><th>浮动比例</th><th>服务费</th><th>优先级</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>国航标准加价</td><td>CA全航线</td><td>固定+比例</td><td>¥50</td><td>3%</td><td>¥10</td><td>10</td><td><span class="badge badge-green">启用</span></td></tr>
+              <tr><td>东航特惠线</td><td>MU 温州-上海</td><td>固定</td><td>¥30</td><td>-</td><td>¥5</td><td>20</td><td><span class="badge badge-green">启用</span></td></tr>
+              <tr><td>高峰期加价</td><td>全航司 节假日</td><td>比例</td><td>-</td><td>5%</td><td>¥15</td><td>5</td><td><span class="badge badge-green">启用</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TMC 大客户 -->
+      <div id="tmc-corporate" class="page">
+        <div class="search-bar">
+          <input placeholder="搜索大客户名称" style="width:200px">
+          <button class="btn btn-primary">+ 新增协议</button>
+          <button class="btn btn-outline">&#x1F4E4; 导入白名单</button>
+        </div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>航司</th><th>协议名称</th><th>签约方</th><th>白名单人数</th><th>有效期</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>CA 国航</td><td>国航温州大客户协议</td><td>温州航空集团(TMC)</td><td>1,234</td><td>2026-01 ~ 2026-12</td><td><span class="badge badge-green">生效中</span></td><td><button class="btn btn-sm btn-outline">政策</button> <button class="btn btn-sm btn-outline">白名单</button></td></tr>
+              <tr><td>3U 川航</td><td>川航集团协议</td><td>温州商旅(MMC)</td><td>567</td><td>2026-03 ~ 2027-02</td><td><span class="badge badge-green">生效中</span></td><td><button class="btn btn-sm btn-outline">政策</button> <button class="btn btn-sm btn-outline">白名单</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MMC 商户端 ==================== -->
+<div id="mmc-layout" class="admin-layout hidden">
+  <div class="sidebar">
+    <div class="logo"><span>&#x2708;&#xFE0F;</span><span>华夏航服</span><span class="badge tag-mmc">MMC</span></div>
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">系统管理</div>
+        <div class="nav-item" onclick="showPage('mmc','mmc-dashboard')">&#x1F4CA; 工作台</div>
+        <div class="nav-item">&#x1F464; 用户管理</div>
+        <div class="nav-item">&#x1F511; 角色管理</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">订单管理</div>
+        <div class="nav-item" onclick="showPage('mmc','mmc-order')">&#x1F4CB; 订单列表</div>
+        <div class="nav-item" onclick="showPage('mmc','mmc-ticketing')">&#x1F39F;&#xFE0F; 出票管理</div>
+        <div class="nav-item">&#x1F504; 退改签</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">审批管理</div>
+        <div class="nav-item" onclick="showPage('mmc','mmc-approval')">&#x1F4DD; 审批流程</div>
+        <div class="nav-item">&#x2705; 审批处理</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">运营管理</div>
+        <div class="nav-item" onclick="showPage('mmc','mmc-mall')">&#x1F6D2; 积分商城</div>
+        <div class="nav-item" onclick="showPage('mmc','mmc-coupon')">&#x1F381; 优惠券</div>
+        <div class="nav-item" onclick="showPage('mmc','mmc-miniprogram')">&#x1F4F1; 小程序管理</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">财务</div>
+        <div class="nav-item">&#x1F4B5; 账户余额</div>
+        <div class="nav-item">&#x1F4B3; 流水记录</div>
+      </div>
+    </nav>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <div class="breadcrumb">首页 / <b id="mmc-page-title">工作台</b></div>
+      <div class="user-area"><span>&#x1F514;</span><span>温州商旅-陈主管</span><div class="avatar">M</div></div>
+    </div>
+    <div class="content">
+      <button class="back-btn" onclick="backToPortal()">&#x2190; 返回入口</button>
+
+      <!-- MMC 工作台 -->
+      <div id="mmc-dashboard" class="page active">
+        <div class="stats">
+          <div class="stat-card"><div class="label">C端用户</div><div class="value">2,345</div><div class="change change-up">&#x2191; 56</div></div>
+          <div class="stat-card"><div class="label">今日订单</div><div class="value">86</div><div class="change change-up">&#x2191; 12%</div></div>
+          <div class="stat-card"><div class="label">待出票</div><div class="value" style="color:#f59e0b">5</div></div>
+          <div class="stat-card"><div class="label">待审批</div><div class="value" style="color:#8b5cf6">3</div></div>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><h3>待处理事项</h3></div>
+          <table>
+            <thead><tr><th>类型</th><th>内容</th><th>时间</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge badge-yellow">待出票</span></td><td>张三 CA1567 温州→北京 ¥1,280</td><td>10分钟前</td><td><button class="btn btn-sm btn-primary">出票</button></td></tr>
+              <tr><td><span class="badge badge-blue">待审批</span></td><td>李四 差旅审批 3日北京出差</td><td>25分钟前</td><td><button class="btn btn-sm btn-primary">审批</button></td></tr>
+              <tr><td><span class="badge badge-red">退票</span></td><td>王五 MU5234 退票申请</td><td>1小时前</td><td><button class="btn btn-sm btn-outline">处理</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MMC 订单管理 -->
+      <div id="mmc-order" class="page">
+        <div class="search-bar">
+          <input placeholder="订单号/乘机人" style="width:200px">
+          <select><option>全部类型</option><option>机票</option><option>火车票</option><option>酒店</option><option>商城</option></select>
+          <select><option>全部状态</option><option>待支付</option><option>待出票</option><option>已出票</option><option>已取消</option></select>
+          <select><option>全部来源</option><option>小程序</option><option>Web端</option><option>开放API</option></select>
+        </div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>订单号</th><th>类型</th><th>乘机人</th><th>航线/商品</th><th>金额</th><th>来源</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>ORD20260627001</td><td><span class="badge badge-blue">机票</span></td><td>张三</td><td>WZS→PEK CA1567</td><td>¥1,280</td><td><span class="badge badge-gray">小程序</span></td><td><span class="badge badge-yellow">待出票</span></td><td><button class="btn btn-sm btn-primary">出票</button></td></tr>
+              <tr><td>ORD20260627002</td><td><span class="badge badge-blue">机票</span></td><td>李四</td><td>WZS→SHA MU5234</td><td>¥680</td><td><span class="badge badge-blue">OpenAPI</span></td><td><span class="badge badge-green">已出票</span></td><td><button class="btn btn-sm btn-outline">详情</button></td></tr>
+              <tr><td>ORD20260627003</td><td><span class="badge badge-green">商城</span></td><td>王五</td><td>华为耳机</td><td>2,000积分</td><td><span class="badge badge-gray">小程序</span></td><td><span class="badge badge-green">已发货</span></td><td><button class="btn btn-sm btn-outline">详情</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MMC 出票管理 -->
+      <div id="mmc-ticketing" class="page">
+        <div class="stats">
+          <div class="stat-card"><div class="label">待出票</div><div class="value" style="color:#f59e0b">5</div></div>
+          <div class="stat-card"><div class="label">出票中</div><div class="value" style="color:#3b82f6">2</div></div>
+          <div class="stat-card"><div class="label">今日已出票</div><div class="value" style="color:#10b981">79</div></div>
+          <div class="stat-card"><div class="label">出票失败</div><div class="value" style="color:#ef4444">1</div></div>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><h3>待出票队列</h3><button class="btn btn-outline">&#x1F4E5; 批量导出</button></div>
+          <table>
+            <thead><tr><th>订单号</th><th>乘机人</th><th>航线</th><th>航司</th><th>采购渠道</th><th>验价状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>ORD20260627001</td><td>张三</td><td>WZS→PEK</td><td>CA</td><td>国航B2B直连</td><td><span class="badge badge-green">验价通过</span></td><td><button class="btn btn-sm btn-primary">出票</button> <button class="btn btn-sm btn-outline">验价</button></td></tr>
+              <tr><td>ORD20260627004</td><td>赵六</td><td>WZS→CAN</td><td>CZ</td><td>中航信1E</td><td><span class="badge badge-yellow">价格偏差2%</span></td><td><button class="btn btn-sm btn-primary">出票</button> <button class="btn btn-sm btn-outline">验价</button></td></tr>
+              <tr><td>ORD20260627005</td><td>钱七</td><td>WZS→CTU</td><td>3U</td><td>川航B2B</td><td><span class="badge badge-red">验价超阈值</span></td><td><button class="btn btn-sm btn-warning">人工处理</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MMC 审批流程 -->
+      <div id="mmc-approval" class="page">
+        <div class="table-card" style="margin-bottom:16px">
+          <div class="table-header"><h3>审批流程列表</h3><button class="btn btn-primary" onclick="showPage('mmc','mmc-approval-designer')">+ 新建流程</button></div>
+          <table>
+            <thead><tr><th>流程编码</th><th>流程名称</th><th>类型</th><th>版本</th><th>绑定功能</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>WF202606140001</td><td>差旅审批流程</td><td>差旅审批</td><td>v1</td><td>OA差旅审批</td><td><span class="badge badge-green">已发布</span></td><td><button class="btn btn-sm btn-outline">编辑</button> <button class="btn btn-sm btn-outline">预览</button></td></tr>
+              <tr><td>WF202606150002</td><td>费用审批流程</td><td>费用审批</td><td>v2</td><td>-</td><td><span class="badge badge-yellow">草稿</span></td><td><button class="btn btn-sm btn-outline">编辑</button> <button class="btn btn-sm btn-outline">发布</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MMC 审批流程设计器 -->
+      <div id="mmc-approval-designer" class="page">
+        <div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+          <h3>审批流程设计器 - 差旅审批流程</h3>
+          <div style="display:flex;gap:8px"><button class="btn btn-outline">保存草稿</button><button class="btn btn-primary">发布</button></div>
+        </div>
+        <div class="flow-designer">
+          <div class="flow-toolbar">
+            <button class="btn btn-sm btn-outline">&#x1F4DD; 基础信息</button>
+            <button class="btn btn-sm btn-primary">&#x1F3A8; 流程设计</button>
+            <button class="btn btn-sm btn-outline">&#x1F4CB; 表单设计</button>
+            <button class="btn btn-sm btn-outline">&#x2699;&#xFE0F; 其他设置</button>
+          </div>
+          <div class="flow-canvas">
+            <div class="flow-node start">
+              <div class="node-title">&#x1F680; 开始</div>
+              <div class="node-desc">全员可提交</div>
+            </div>
+            <div class="flow-arrow">&#x27A1;&#xFE0F;</div>
+            <div class="flow-node condition">
+              <div class="node-title">&#x2753; 条件分支</div>
+              <div class="node-desc">2组3条条件</div>
+            </div>
+            <div class="flow-arrow-branch">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="flow-branch-label" style="background:#d1fae5;color:#065f46">&#x2264;1天</span>
+                <span class="flow-arrow">&#x27A1;&#xFE0F;</span>
+                <div class="flow-node end" style="min-width:120px">
+                  <div class="node-title">&#x2705; 自动通过</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="flow-branch-label" style="background:#dbeafe;color:#1e40af">1-3天</span>
+                <span class="flow-arrow">&#x27A1;&#xFE0F;</span>
+                <div class="flow-node approval" style="min-width:120px">
+                  <div class="node-title">&#x1F464; 领导审批</div>
+                  <div class="node-desc">直属上级</div>
+                </div>
+                <span class="flow-arrow">&#x27A1;&#xFE0F;</span>
+                <div class="flow-node end" style="min-width:120px">
+                  <div class="node-title">&#x2705; 自动通过</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="flow-branch-label" style="background:#fee2e2;color:#991b1b">&gt;5天</span>
+                <span class="flow-arrow">&#x27A1;&#xFE0F;</span>
+                <div class="flow-node approval" style="min-width:120px">
+                  <div class="node-title">&#x1F451; BOSS审批</div>
+                  <div class="node-desc">超级管理员</div>
+                </div>
+                <span class="flow-arrow">&#x27A1;&#xFE0F;</span>
+                <div class="flow-node approval" style="min-width:120px">
+                  <div class="node-title">&#x1F464; 领导审批</div>
+                  <div class="node-desc">直属上级</div>
+                </div>
+                <span class="flow-arrow">&#x27A1;&#xFE0F;</span>
+                <div class="flow-node end" style="min-width:120px">
+                  <div class="node-title">&#x2705; 自动通过</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MMC 积分商城 -->
+      <div id="mmc-mall" class="page">
+        <div class="search-bar">
+          <input placeholder="商品名称" style="width:200px">
+          <select><option>全部分类</option><option>数码</option><option>家居</option><option>旅行</option></select>
+          <button class="btn btn-primary">+ 新增商品</button>
+        </div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>商品图片</th><th>商品名称</th><th>分类</th><th>积分价格</th><th>库存</th><th>销量</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td style="font-size:24px">&#x1F3A7;</td><td>华为FreeBuds耳机</td><td>数码</td><td>2,000积分</td><td>56</td><td>234</td><td><span class="badge badge-green">上架</span></td><td><button class="btn btn-sm btn-outline">编辑</button> <button class="btn btn-sm btn-danger">下架</button></td></tr>
+              <tr><td style="font-size:24px">&#x1F4E6;</td><td>旅行收纳包套装</td><td>旅行</td><td>500积分</td><td>120</td><td>567</td><td><span class="badge badge-green">上架</span></td><td><button class="btn btn-sm btn-outline">编辑</button> <button class="btn btn-sm btn-danger">下架</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MMC 优惠券 -->
+      <div id="mmc-coupon" class="page">
+        <div class="search-bar">
+          <button class="btn btn-primary">+ 创建优惠券</button>
+        </div>
+        <div class="table-card">
+          <table>
+            <thead><tr><th>券名称</th><th>类型</th><th>适用</th><th>面额/折扣</th><th>发行量</th><th>已领取</th><th>已使用</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>新人机票券</td><td><span class="badge badge-blue">机票券</span></td><td>机票</td><td>减¥50</td><td>1,000</td><td>456</td><td>234</td><td><span class="badge badge-green">进行中</span></td></tr>
+              <tr><td>会员95折</td><td><span class="badge badge-green">折扣券</span></td><td>通用</td><td>9.5折</td><td>500</td><td>123</td><td>67</td><td><span class="badge badge-green">进行中</span></td></tr>
+              <tr><td>酒店满减</td><td><span class="badge badge-yellow">满减券</span></td><td>酒店</td><td>满500减80</td><td>200</td><td>200</td><td>156</td><td><span class="badge badge-gray">已领完</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MMC 小程序管理 -->
+      <div id="mmc-miniprogram" class="page">
+        <div class="stats" style="grid-template-columns: repeat(3,1fr)">
+          <div class="stat-card"><div class="label">小程序状态</div><div class="value" style="font-size:16px;color:#10b981">已绑定</div></div>
+          <div class="stat-card"><div class="label">今日访问</div><div class="value">1,234</div></div>
+          <div class="stat-card"><div class="label">今日下单</div><div class="value">86</div></div>
+        </div>
+        <div class="table-card" style="margin-bottom:16px">
+          <div class="table-header"><h3>页面装修</h3><button class="btn btn-primary">+ 新建页面</button></div>
+          <table>
+            <thead><tr><th>页面名称</th><th>类型</th><th>组件数</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>首页</td><td><span class="badge badge-blue">首页</span></td><td>8个组件</td><td><span class="badge badge-green">已发布</span></td><td><button class="btn btn-sm btn-primary">装修</button> <button class="btn btn-sm btn-outline">预览</button></td></tr>
+              <tr><td>暑期促销页</td><td><span class="badge badge-yellow">活动页</span></td><td>5个组件</td><td><span class="badge badge-yellow">草稿</span></td><td><button class="btn btn-sm btn-primary">装修</button> <button class="btn btn-sm btn-outline">预览</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><h3>装修组件库</h3></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px">
+            <div style="text-align:center;padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer">&#x1F4F7;<br><small>轮播图</small></div>
+            <div style="text-align:center;padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer">&#x1F4DD;<br><small>导航宫格</small></div>
+            <div style="text-align:center;padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer">&#x2708;&#xFE0F;<br><small>机票搜索</small></div>
+            <div style="text-align:center;padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer">&#x1F3E8;<br><small>酒店搜索</small></div>
+            <div style="text-align:center;padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer">&#x1F6D2;<br><small>商品列表</small></div>
+            <div style="text-align:center;padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer">&#x1F4E3;<br><small>广告位</small></div>
+            <div style="text-align:center;padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer">&#x1F4E2;<br><small>公告栏</small></div>
+            <div style="text-align:center;padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer">&#x1F4DC;<br><small>富文本</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== C端 客户端 ==================== -->
+<div id="client-layout" class="client-layout hidden">
+  <div class="client-header">
+    <h2>温州商旅</h2>
+    <p>温州航空集团旗下 | 会员等级: 金卡</p>
+  </div>
+
+  <div class="client-search">
+    <div class="search-tabs">
+      <div class="search-tab active">&#x2708;&#xFE0F; 机票</div>
+      <div class="search-tab">&#x1F686; 火车票</div>
+      <div class="search-tab">&#x1F3E8; 酒店</div>
+      <div class="search-tab">&#x1F697; 用车</div>
+    </div>
+    <div class="search-inputs">
+      <div class="search-row">
+        <input placeholder="出发城市" value="温州">
+        <button class="swap">&#x21C4;</button>
+        <input placeholder="到达城市" value="北京">
+      </div>
+      <div class="search-row">
+        <input type="date" value="2026-07-01">
+        <input type="date" placeholder="返程日期(选填)">
+      </div>
+      <button class="search-btn">&#x1F50D; 搜索航班</button>
+    </div>
+  </div>
+
+  <div class="client-section">
+    <div class="quick-nav">
+      <div class="quick-nav-item"><div class="icon-wrap" style="background:#eff6ff">&#x2708;&#xFE0F;</div><span>机票</span></div>
+      <div class="quick-nav-item"><div class="icon-wrap" style="background:#f0fdf4">&#x1F686;</div><span>火车票</span></div>
+      <div class="quick-nav-item"><div class="icon-wrap" style="background:#fef3c7">&#x1F3E8;</div><span>酒店</span></div>
+      <div class="quick-nav-item"><div class="icon-wrap" style="background:#fce7f3">&#x1F697;</div><span>用车</span></div>
+      <div class="quick-nav-item"><div class="icon-wrap" style="background:#ede9fe">&#x1F331;</div><span>签到</span></div>
+      <div class="quick-nav-item"><div class="icon-wrap" style="background:#dbeafe">&#x1F381;</div><span>优惠券</span></div>
+      <div class="quick-nav-item"><div class="icon-wrap" style="background:#d1fae5">&#x1F6D2;</div><span>积分商城</span></div>
+      <div class="quick-nav-item"><div class="icon-wrap" style="background:#fee2e2">&#x2764;&#xFE0F;</div><span>收藏</span></div>
+    </div>
+  </div>
+
+  <div class="client-section">
+    <div class="banner">
+      <div><h3>暑期特惠</h3><p>温州出发 机票低至3折</p></div>
+    </div>
+  </div>
+
+  <div class="client-section">
+    <h4>热门航线 <span>更多 &#x2764;&#xFE0F;</span></h4>
+    <div class="hot-flight">
+      <div class="flight-card"><div class="route">温州 &#x2192; 北京</div><div class="price">¥680 <small>起</small></div></div>
+      <div class="flight-card"><div class="route">温州 &#x2192; 上海</div><div class="price">¥380 <small>起</small></div></div>
+      <div class="flight-card"><div class="route">温州 &#x2192; 广州</div><div class="price">¥520 <small>起</small></div></div>
+      <div class="flight-card"><div class="route">温州 &#x2192; 成都</div><div class="price">¥580 <small>起</small></div></div>
+    </div>
+  </div>
+
+  <div style="height:70px"></div>
+
+  <div class="client-bottom-nav">
+    <div class="tab active"><div class="icon">&#x1F3E0;</div>首页</div>
+    <div class="tab"><div class="icon">&#x1F4CB;</div>订单</div>
+    <div class="tab"><div class="icon">&#x1F6D2;</div>商城</div>
+    <div class="tab"><div class="icon">&#x1F464;</div>我的</div>
+  </div>
+  <button class="back-btn" onclick="backToPortal()" style="position:fixed;top:12px;left:12px;z-index:30;background:rgba(0,0,0,0.5);color:#fff;border-color:transparent">&#x2190; 返回</button>
+</div>
+
+<!-- ==================== 弹窗示例 ==================== -->
+<div id="user-modal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h3>新增用户</h3><button class="modal-close" onclick="hideModal('user-modal')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>用户名 <span class="required">*</span></label><input placeholder="请输入用户名"></div>
+        <div class="form-group"><label>姓名 <span class="required">*</span></label><input placeholder="请输入姓名"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>手机号 <span class="required">*</span></label><input placeholder="请输入手机号"></div>
+        <div class="form-group"><label>初始密码 <span class="required">*</span></label><input type="password" placeholder="8位以上含大小写+数字+特殊字符"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>角色 <span class="required">*</span></label><select><option>请选择角色</option><option>超级管理员</option><option>运营管理</option><option>客服</option></select></div>
+        <div class="form-group"><label>部门</label><select><option>请选择部门</option><option>总经办</option><option>运营部</option><option>技术部</option></select></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="hideModal('user-modal')">取消</button><button class="btn btn-primary" onclick="hideModal('user-modal')">确定</button></div>
+  </div>
+</div>
+
+<script>
+function showAdmin(type) {
+  document.getElementById('portal-page').classList.add('hidden');
+  document.getElementById(type + '-layout').classList.remove('hidden');
+}
+function showClient() {
+  document.getElementById('portal-page').classList.add('hidden');
+  document.getElementById('client-layout').classList.remove('hidden');
+}
+function backToPortal() {
+  ['pmc-layout','tmc-layout','mmc-layout','client-layout'].forEach(id => {
+    document.getElementById(id).classList.add('hidden');
+  });
+  document.getElementById('portal-page').classList.remove('hidden');
+}
+function showPage(end, pageId) {
+  const container = document.getElementById(end + '-layout');
+  container.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  // 更新面包屑标题
+  const titleEl = document.getElementById(end + '-page-title');
+  const page = document.getElementById(pageId);
+  if (titleEl && page) {
+    const h3 = page.querySelector('.table-header h3');
+    if (h3) titleEl.textContent = h3.textContent;
+  }
+  // 更新侧边栏active
+  container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+}
+function showModal(id) { document.getElementById(id).classList.add('show'); }
+function hideModal(id) { document.getElementById(id).classList.remove('show'); }
+// 搜索tab切换
+document.querySelectorAll('.search-tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
