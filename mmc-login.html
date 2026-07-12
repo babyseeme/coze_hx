@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MMC 商户管理端 - 华夏航服</title>
+  <style>
+    /* ===== CSS Variables (Arco Design 色系 - MMC 绿色主题) ===== */
+    :root {
+      --primary: #00B42A;
+      --primary-hover: #27C346;
+      --primary-active: #009A29;
+      --primary-light: #E8FFEA;
+      --bg-dark: #0A2E1A;
+      --bg-gradient-start: #0A2E1A;
+      --bg-gradient-end: #1A5C3A;
+      --text-primary: #1D2129;
+      --text-secondary: #4E5969;
+      --text-tertiary: #86909C;
+      --text-white: #FFFFFF;
+      --border: #E5E6EB;
+      --border-hover: #C9CDD4;
+      --bg-white: #FFFFFF;
+      --bg-page: #F7F8FA;
+      --danger: #F53F3F;
+      --success: #00B42A;
+      --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.08);
+      --shadow-input: 0 2px 8px rgba(0, 180, 42, 0.15);
+      --radius: 8px;
+      --radius-lg: 12px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ===== Reset & Base ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+        'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5715;
+      color: var(--text-primary);
+      background: var(--bg-page);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ===== Login Container ===== */
+    .login-wrapper {
+      display: flex;
+      min-height: 100vh;
+      width: 100%;
+    }
+
+    /* ===== Left Panel (Brand/Illustration) ===== */
+    .login-left {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+      position: relative;
+      overflow: hidden;
+      padding: 60px;
+    }
+
+    .login-left::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 70% 30%, rgba(0, 180, 42, 0.15) 0%, transparent 50%),
+                  radial-gradient(circle at 30% 70%, rgba(39, 195, 70, 0.1) 0%, transparent 40%);
+      animation: float 20s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      33% { transform: translate(-30px, 30px) rotate(-1deg); }
+      66% { transform: translate(20px, -20px) rotate(1deg); }
+    }
+
+    .login-left::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    }
+
+    .brand-content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: 480px;
+    }
+
+    .brand-logo {
+      width: 72px;
+      height: 72px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 32px;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand-logo svg {
+      width: 40px;
+      height: 40px;
+      fill: none;
+      stroke: #FFFFFF;
+      stroke-width: 1.5;
+    }
+
+    .brand-title {
+      font-size: 32px;
+      font-weight: 600;
+      color: var(--text-white);
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 48px;
+      line-height: 1.6;
+    }
+
+    .brand-features {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      text-align: left;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 14px;
+    }
+
+    .feature-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(0, 180, 42, 0.3);
+      border: 1px solid rgba(0, 180, 42, 0.4);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .feature-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: #27C346;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    /* Decorative elements */
+    .deco-circle {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .deco-circle-1 {
+      width: 350px;
+      height: 350px;
+      top: -80px;
+      left: -80px;
+    }
+
+    .deco-circle-2 {
+      width: 280px;
+      height: 280px;
+      bottom: -60px;
+      right: -60px;
+    }
+
+    .deco-circle-3 {
+      width: 180px;
+      height: 180px;
+      top: 40%;
+      right: 15%;
+      border-color: rgba(0, 180, 42, 0.1);
+    }
+
+    /* ===== Right Panel (Form) ===== */
+    .login-right {
+      width: 520px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: var(--bg-white);
+      padding: 60px;
+      position: relative;
+    }
+
+    .login-form-wrapper {
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .form-header {
+      margin-bottom: 40px;
+    }
+
+    .form-header .platform-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 4px;
+      margin-bottom: 16px;
+    }
+
+    .form-header .platform-tag svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--primary);
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .form-header h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .form-header p {
+      font-size: 14px;
+      color: var(--text-tertiary);
+    }
+
+    /* ===== Form Elements ===== */
+    .form-group {
+      margin-bottom: 24px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 12px;
+      width: 18px;
+      height: 18px;
+      color: var(--text-tertiary);
+      pointer-events: none;
+      transition: var(--transition);
+    }
+
+    .input-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .form-input {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px 0 40px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 14px;
+      color: var(--text-primary);
+      background: var(--bg-white);
+      transition: var(--transition);
+      outline: none;
+    }
+
+    .form-input::placeholder {
+      color: var(--text-tertiary);
+    }
+
+    .form-input:hover {
+      border-color: var(--border-hover);
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-input);
+    }
+
+    .form-input:focus + .input-icon,
+    .form-input:focus ~ .input-icon {
+      color: var(--primary);
+    }
+
+    .form-input.error {
+      border-color: var(--danger);
+    }
+
+    .form-input.error:focus {
+      box-shadow: 0 2px 8px rgba(245, 63, 63, 0.15);
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 12px;
+      width: 18px;
+      height: 18px;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: var(--transition);
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    .password-toggle:hover {
+      color: var(--text-secondary);
+    }
+
+    .password-toggle svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .error-message {
+      font-size: 12px;
+      color: var(--danger);
+      margin-top: 6px;
+      display: none;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .error-message.show {
+      display: flex;
+    }
+
+    .error-message svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--danger);
+      fill: none;
+      stroke-width: 2;
+    }
+
+    /* ===== Captcha ===== */
+    .captcha-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .captcha-row .input-wrapper {
+      flex: 1;
+    }
+
+    .captcha-image {
+      width: 120px;
+      height: 40px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: #F2F3F5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
+    }
+
+    .captcha-image:hover {
+      border-color: var(--primary);
+    }
+
+    .captcha-image canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ===== Checkbox & Links ===== */
+    .form-options {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    .checkbox-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-wrapper input[type="checkbox"] {
+      display: none;
+    }
+
+    .checkbox-custom {
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
+    }
+
+    .checkbox-wrapper input:checked + .checkbox-custom {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .checkbox-wrapper input:checked + .checkbox-custom::after {
+      content: '';
+      width: 8px;
+      height: 5px;
+      border-left: 2px solid white;
+      border-bottom: 2px solid white;
+      transform: rotate(-45deg) translateY(-1px);
+    }
+
+    .checkbox-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .forgot-link {
+      font-size: 13px;
+      color: var(--primary);
+      text-decoration: none;
+      transition: var(--transition);
+    }
+
+    .forgot-link:hover {
+      color: var(--primary-hover);
+    }
+
+    /* ===== Login Button ===== */
+    .login-btn {
+      width: 100%;
+      height: 44px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-btn:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 180, 42, 0.35);
+    }
+
+    .login-btn:active {
+      background: var(--primary-active);
+      transform: translateY(0);
+    }
+
+    .login-btn.loading {
+      pointer-events: none;
+      opacity: 0.85;
+    }
+
+    .login-btn .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .login-btn.loading .spinner {
+      display: block;
+    }
+
+    .login-btn.loading .btn-text {
+      display: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ===== Footer ===== */
+    .login-footer {
+      margin-top: 40px;
+      text-align: center;
+    }
+
+    .login-footer .divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .login-footer .divider::before,
+    .login-footer .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .login-footer .divider span {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+    }
+
+    .sso-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-white);
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .sso-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .sso-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .copyright {
+      margin-top: 32px;
+      font-size: 12px;
+      color: var(--text-tertiary);
+      text-align: center;
+    }
+
+    .copyright a {
+      color: var(--text-tertiary);
+      text-decoration: none;
+    }
+
+    .copyright a:hover {
+      color: var(--primary);
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 992px) {
+      .login-left {
+        display: none;
+      }
+
+      .login-right {
+        width: 100%;
+        padding: 40px 24px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .login-right {
+        padding: 32px 20px;
+      }
+
+      .form-header h1 {
+        font-size: 20px;
+      }
+
+      .form-options {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+    }
+
+    /* ===== Animations ===== */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .login-form-wrapper {
+      animation: fadeInUp 0.6s ease-out;
+    }
+
+    .form-group:nth-child(1) { animation-delay: 0.1s; }
+    .form-group:nth-child(2) { animation-delay: 0.2s; }
+    .form-group:nth-child(3) { animation-delay: 0.3s; }
+  </style>
+</head>
+<body>
+  <div class="login-wrapper">
+    <!-- Left Panel: Brand -->
+    <div class="login-left">
+      <div class="deco-circle deco-circle-1"></div>
+      <div class="deco-circle deco-circle-2"></div>
+      <div class="deco-circle deco-circle-3"></div>
+
+      <div class="brand-content">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+        </div>
+        <h1 class="brand-title">华夏航服 · MMC</h1>
+        <p class="brand-subtitle">商户运营管理中心<br>独立经营 · 客户深耕 · 业绩增长</p>
+
+        <div class="brand-features">
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </div>
+            <span>实时业绩看板，营收数据一目了然</span>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <span>客户精细化管理，大客户专属服务</span>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </div>
+            <span>灵活结算体系，资金流转安全透明</span>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </div>
+            <span>多业务线协同，机票酒店火车一站式</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Form -->
+    <div class="login-right">
+      <div class="login-form-wrapper">
+        <div class="form-header">
+          <div class="platform-tag">
+            <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            MMC 商户管理端
+          </div>
+          <h1>欢迎登录</h1>
+          <p>请输入您的商户账号信息</p>
+        </div>
+
+        <form id="loginForm" onsubmit="return handleLogin(event)">
+          <!-- Tenant ID -->
+          <div class="form-group">
+            <label class="form-label">商户编码</label>
+            <div class="input-wrapper">
+              <input type="text" class="form-input" id="tenantId" placeholder="请输入商户编码" autocomplete="off">
+              <span class="input-icon">
+                <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+              </span>
+            </div>
+            <div class="error-message" id="tenantIdError">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>请输入商户编码</span>
+            </div>
+          </div>
+
+          <!-- Username -->
+          <div class="form-group">
+            <label class="form-label">用户名</label>
+            <div class="input-wrapper">
+              <input type="text" class="form-input" id="username" placeholder="请输入用户名/手机号" autocomplete="username">
+              <span class="input-icon">
+                <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </span>
+            </div>
+            <div class="error-message" id="usernameError">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>请输入用户名</span>
+            </div>
+          </div>
+
+          <!-- Password -->
+          <div class="form-group">
+            <label class="form-label">密码</label>
+            <div class="input-wrapper">
+              <input type="password" class="form-input" id="password" placeholder="请输入密码" autocomplete="current-password">
+              <span class="input-icon">
+                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </span>
+              <button type="button" class="password-toggle" onclick="togglePassword()">
+                <svg id="eyeIcon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="error-message" id="passwordError">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>请输入密码</span>
+            </div>
+          </div>
+
+          <!-- Captcha -->
+          <div class="form-group">
+            <label class="form-label">验证码</label>
+            <div class="captcha-row">
+              <div class="input-wrapper">
+                <input type="text" class="form-input" id="captcha" placeholder="请输入验证码" autocomplete="off" maxlength="4">
+                <span class="input-icon">
+                  <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </span>
+              </div>
+              <div class="captcha-image" onclick="refreshCaptcha()" title="点击刷新验证码">
+                <canvas id="captchaCanvas" width="120" height="40"></canvas>
+              </div>
+            </div>
+            <div class="error-message" id="captchaError">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>请输入验证码</span>
+            </div>
+          </div>
+
+          <!-- Options -->
+          <div class="form-options">
+            <label class="checkbox-wrapper">
+              <input type="checkbox" id="rememberMe">
+              <span class="checkbox-custom"></span>
+              <span class="checkbox-label">记住我</span>
+            </label>
+            <a href="#" class="forgot-link">忘记密码？</a>
+          </div>
+
+          <!-- Submit -->
+          <button type="submit" class="login-btn" id="loginBtn">
+            <span class="btn-text">登 录</span>
+            <span class="spinner"></span>
+          </button>
+        </form>
+
+        <!-- Footer -->
+        <div class="login-footer">
+          <div class="divider">
+            <span>其他登录方式</span>
+          </div>
+          <button class="sso-btn" onclick="handleSSO()">
+            <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            SSO 单点登录
+          </button>
+        </div>
+
+        <div class="copyright">
+          <p>&copy; 2025 温州华夏航空服务有限公司</p>
+          <p style="margin-top: 4px;"><a href="#">隐私政策</a> · <a href="#">服务条款</a> · <a href="#">帮助中心</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Captcha generation
+    let captchaText = '';
+
+    function generateCaptcha() {
+      const canvas = document.getElementById('captchaCanvas');
+      const ctx = canvas.getContext('2d');
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      captchaText = '';
+
+      // Background
+      ctx.fillStyle = '#F2F3F5';
+      ctx.fillRect(0, 0, 120, 40);
+
+      // Noise lines
+      for (let i = 0; i < 4; i++) {
+        ctx.strokeStyle = `rgba(${Math.random()*60+20}, ${Math.random()*100+100}, ${Math.random()*60+40}, 0.5)`;
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * 120, Math.random() * 40);
+        ctx.lineTo(Math.random() * 120, Math.random() * 40);
+        ctx.stroke();
+      }
+
+      // Characters
+      for (let i = 0; i < 4; i++) {
+        const char = chars[Math.floor(Math.random() * chars.length)];
+        captchaText += char;
+        ctx.font = `bold ${18 + Math.random() * 6}px Arial`;
+        ctx.fillStyle = `rgb(${Math.random()*40+20}, ${Math.random()*80+100}, ${Math.random()*60+40})`;
+        ctx.save();
+        ctx.translate(20 + i * 25, 25 + Math.random() * 6 - 3);
+        ctx.rotate((Math.random() - 0.5) * 0.4);
+        ctx.fillText(char, 0, 0);
+        ctx.restore();
+      }
+    }
+
+    function refreshCaptcha() {
+      generateCaptcha();
+    }
+
+    // Password toggle
+    function togglePassword() {
+      const input = document.getElementById('password');
+      const icon = document.getElementById('eyeIcon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+      } else {
+        input.type = 'password';
+        icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+      }
+    }
+
+    // Form validation
+    function validateForm() {
+      let isValid = true;
+
+      const fields = [
+        { id: 'tenantId', errorId: 'tenantIdError' },
+        { id: 'username', errorId: 'usernameError' },
+        { id: 'password', errorId: 'passwordError' },
+        { id: 'captcha', errorId: 'captchaError' }
+      ];
+
+      fields.forEach(field => {
+        const input = document.getElementById(field.id);
+        const error = document.getElementById(field.errorId);
+        if (!input.value.trim()) {
+          input.classList.add('error');
+          error.classList.add('show');
+          isValid = false;
+        } else {
+          input.classList.remove('error');
+          error.classList.remove('show');
+        }
+      });
+
+      // Captcha validation
+      const captchaInput = document.getElementById('captcha').value.toUpperCase();
+      if (captchaInput && captchaInput !== captchaText) {
+        document.getElementById('captcha').classList.add('error');
+        document.getElementById('captchaError').classList.add('show');
+        document.getElementById('captchaError').querySelector('span').textContent = '验证码错误';
+        isValid = false;
+        refreshCaptcha();
+      }
+
+      return isValid;
+    }
+
+    // Login handler
+    function handleLogin(event) {
+      event.preventDefault();
+
+      if (!validateForm()) return false;
+
+      const btn = document.getElementById('loginBtn');
+      btn.classList.add('loading');
+
+      // Simulate API call
+      setTimeout(() => {
+        btn.classList.remove('loading');
+        alert('登录成功！即将跳转到 MMC 管理后台...');
+      }, 1500);
+
+      return false;
+    }
+
+    // SSO handler
+    function handleSSO() {
+      alert('正在跳转到 SSO 单点登录...');
+    }
+
+    // Input focus/blur effects
+    document.querySelectorAll('.form-input').forEach(input => {
+      input.addEventListener('focus', function() {
+        this.classList.remove('error');
+        const errorEl = this.closest('.form-group').querySelector('.error-message');
+        if (errorEl) errorEl.classList.remove('show');
+      });
+    });
+
+    // Init
+    generateCaptcha();
+  </script>
+</body>
+</html>

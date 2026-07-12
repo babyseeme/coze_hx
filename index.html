@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>华夏航服 B2B2C 综合航旅服务平台</title>
+  <style>
+    :root {
+      --primary: #165DFF;
+      --primary-light: #E8F3FF;
+      --text-primary: #1D2129;
+      --text-secondary: #4E5969;
+      --text-tertiary: #86909C;
+      --border: #E5E6EB;
+      --bg-white: #FFFFFF;
+      --bg-page: #F7F8FA;
+      --radius: 12px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+        'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: var(--bg-page);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .header {
+      margin-bottom: 60px;
+    }
+
+    .logo {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #165DFF 0%, #4080FF 100%);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      box-shadow: 0 8px 24px rgba(22, 93, 255, 0.25);
+    }
+
+    .logo svg {
+      width: 36px;
+      height: 36px;
+      fill: none;
+      stroke: white;
+      stroke-width: 1.5;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+    }
+
+    .subtitle {
+      font-size: 15px;
+      color: var(--text-tertiary);
+      line-height: 1.6;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+
+    .card {
+      background: var(--bg-white);
+      border-radius: var(--radius);
+      padding: 40px 32px;
+      text-align: left;
+      border: 1px solid var(--border);
+      transition: var(--transition);
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+      border-color: transparent;
+    }
+
+    .card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .card-icon svg {
+      width: 24px;
+      height: 24px;
+      stroke: white;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .card-tmc .card-icon {
+      background: linear-gradient(135deg, #165DFF 0%, #4080FF 100%);
+    }
+
+    .card-mmc .card-icon {
+      background: linear-gradient(135deg, #00B42A 0%, #27C346 100%);
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .card-desc {
+      font-size: 14px;
+      color: var(--text-tertiary);
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .card-features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .feature-tag {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: var(--bg-page);
+      color: var(--text-secondary);
+    }
+
+    .card-tmc:hover .feature-tag {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .card-mmc:hover .feature-tag {
+      background: #E8FFEA;
+      color: #00B42A;
+    }
+
+    .card-arrow {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-top: 20px;
+      transition: var(--transition);
+    }
+
+    .card-tmc .card-arrow {
+      color: var(--primary);
+    }
+
+    .card-mmc .card-arrow {
+      color: #00B42A;
+    }
+
+    .card:hover .card-arrow {
+      gap: 10px;
+    }
+
+    .card-arrow svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .footer {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    .footer a {
+      color: var(--text-tertiary);
+      text-decoration: none;
+      transition: var(--transition);
+    }
+
+    .footer a:hover {
+      color: var(--primary);
+    }
+
+    @media (max-width: 720px) {
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .title {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <h1 class="title">华夏航服 B2B2C 综合航旅服务平台</h1>
+      <p class="subtitle">选择您要登录的管理端</p>
+    </div>
+
+    <div class="cards">
+      <!-- TMC Card -->
+      <a href="/tmc-login.html" class="card card-tmc">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <h3 class="card-title">TMC 集团管理端</h3>
+        <p class="card-desc">集团差旅管理中心，统一管理多商户，智能审批流程，实时数据洞察</p>
+        <div class="card-features">
+          <span class="feature-tag">多商户管理</span>
+          <span class="feature-tag">差旅审批</span>
+          <span class="feature-tag">数据看板</span>
+          <span class="feature-tag">大客户政策</span>
+        </div>
+        <div class="card-arrow">
+          进入登录页
+          <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </div>
+      </a>
+
+      <!-- MMC Card -->
+      <a href="/mmc-login.html" class="card card-mmc">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+        </div>
+        <h3 class="card-title">MMC 商户管理端</h3>
+        <p class="card-desc">商户运营管理中心，独立经营，客户深耕，多业务线协同</p>
+        <div class="card-features">
+          <span class="feature-tag">订单管理</span>
+          <span class="feature-tag">客户管理</span>
+          <span class="feature-tag">财务结算</span>
+          <span class="feature-tag">业绩统计</span>
+        </div>
+        <div class="card-arrow">
+          进入登录页
+          <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </div>
+      </a>
+    </div>
+
+    <div class="footer">
+      <p>&copy; 2025 温州华夏航空服务有限公司</p>
+      <p style="margin-top: 8px;">
+        <a href="#">隐私政策</a> · <a href="#">服务条款</a> · <a href="#">帮助中心</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>
